@@ -1,0 +1,26 @@
+{
+  "name": "architect-2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "scenarios:run": "tsx scripts/scenarios-run.ts",
+    "scenarios:regress": "tsx scripts/scenarios-regress.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.71",
+    "@ai-sdk/openai": "^4.0.83",
+    "@electric-sql/pglite": "^0.5.8",
+    "ai": "^7.0.127",
+    "drizzle-orm": "^0.45.3",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
