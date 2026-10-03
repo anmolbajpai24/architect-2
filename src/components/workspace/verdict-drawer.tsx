@@ -13,6 +13,7 @@ import { Disclosure } from "./disclosure";
 import { modelLabel, shortId } from "./format";
 import { InstructionDiff } from "./instruction-diff";
 import { RuleChangePanel } from "./rule-change-panel";
+import { LiveResult } from "./live-result";
 import { ShipPanel } from "./ship-panel";
 import { ChangeStatusPill, StatusIcon } from "./status";
 import type { Progress, WorkspaceApi } from "./use-workspace";
@@ -386,6 +387,13 @@ function VerdictBody({
           }
         >
           <ShipPanel change={change} snapshot={snapshot} run={run} api={api} />
+        </Step>
+      )}
+
+      {/* Applying is what makes a change live, so this step is complete as soon as step 2 ended in an apply. */}
+      {change.status === "applied" && (
+        <Step n={4} title="Live result" state="pass">
+          <LiveResult snapshot={snapshot} />
         </Step>
       )}
     </div>

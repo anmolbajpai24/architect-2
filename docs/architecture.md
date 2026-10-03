@@ -148,3 +148,54 @@ Browser ──▶ Next.js server ──(App private key → JWT)──▶ GitHub
   never pushes to the default branch, so a human still reviews and merges.
 - **Short-lived in production.** Installation tokens expire within the hour and are scoped per installation, so a
   leak is bounded in time and reach.
+
+## Deployment: what happens after a change is applied
+
+### Prototype (implemented)
+
+There is no deployment step, and the product says so rather than miming one.
+
+```
+verified change ──▶ apply ──▶ live immediately ──▶ /preview/<projectId>
+                      │
+                      └──▶ ship ──▶ pull request (a record, not a release)
+```
+
+- **Applying is the release.** An agent's `currentVersionId` moves, and the next request — a scenario run or a
+  preview turn — loads the new version. No build, no artifact, no restart.
+- **Architect is the runtime.** One Next.js deployment plus Supabase runs every project's agents, on the server's
+  own model credential. The "live URL" of a project is `<ARCHITECT_PUBLIC_URL>/preview/<projectId>` on that same
+  deployment; it is not a per-project host.
+- **Shipping is provenance, not deployment.** The pull request commits the verified agent and scenario definitions
+  and the change's verification record, and links back to both the change in Architect and the running system.
+  Merging it deploys nothing. The workspace's "Live result" step states this in those words.
+- The gate still means what it says: a change only reaches GitHub after structural verification passed, its
+  scenarios passed, it was applied, and the live agents re-passed every current rule.
+
+### Production
+
+```
+verified change ──▶ deploy queue ──▶ build worker ──▶ artifact registry
+                                          │
+                                          ▼
+                     deployment worker (lease) ──▶ sandbox ──▶ preview gateway ──▶ environment
+```
+
+- **Queue and leases.** "Deploy this change" becomes a row in a jobs table, claimed by a worker with a conditional
+  `update ... where expires_at < now()`, renewed while it works and expiring if the instance dies. That same
+  mechanism replaces the process-local one-job lock Architect uses today (`src/server/context.ts`), which is the
+  one piece of state that stops this prototype running on more than one instance.
+- **Isolated builds.** A build worker turns the verified project into an immutable, content-addressed artifact in a
+  sandbox with no credentials and no network beyond its package source. Builds are the first place generated code
+  could exist, so they are the first place isolation is non-optional.
+- **Deployment workers and environments.** A deployment worker places an artifact into a per-project sandbox and
+  flips the gateway's route when it is healthy, so a bad version never takes traffic. Promotion from preview to a
+  durable environment reuses the existing ship gate: only an applied, structurally valid, fully passing change is
+  eligible.
+- **Credentials.** No shared server key. Each sandbox receives a short-lived, per-project token from the gateway;
+  GitHub access comes from a GitHub App installation token (below), not a pasted PAT.
+- **Scaling.** The web tier is already stateless apart from that lock, so it scales horizontally once the lease
+  moves to Postgres. Workers scale independently of request traffic, and SSE-over-polling (`/api/events`) becomes a
+  real pub/sub channel. `docs/DEPLOYMENT.md` §8 lists the prototype limits this removes, one by one.
+
+None of the production row is built. What exists is the left-hand side: verify, apply, run, and record.

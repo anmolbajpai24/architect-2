@@ -249,6 +249,14 @@ export function ActiveChange({
             </a>
           </Button>
         )}
+        {change.status === "applied" && (
+          <Button size="sm" variant="ghost" asChild>
+            <a href={`/preview/${snapshot.project.id}`} target="_blank" rel="noreferrer">
+              Open live result
+              <ExternalLink data-icon="inline-end" />
+            </a>
+          </Button>
+        )}
       </div>
       {stage.hint && <p className="text-[11px] text-muted-foreground">{stage.hint}</p>}
     </section>

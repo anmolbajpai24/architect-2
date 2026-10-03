@@ -19,7 +19,7 @@ import { Assertion, type AgentConfig, type ScenarioInput, type ScenarioResult, t
 import { proposerConfig } from "@/changes/proposer";
 import { hasDefinition } from "@/projects/registry";
 import { loadScenarios } from "@/scenarios/runner";
-import { githubStatus, type GitHubStatus } from "@/github/config";
+import { githubStatus, publicUrl, type GitHubStatus } from "@/github/config";
 import { checkShipGate } from "@/shipping/gate";
 import { configReport } from "./config";
 import { busyJob, getModes, type ResolvedProject } from "./context";
@@ -160,6 +160,8 @@ export type WorkspaceSnapshot = {
     judge: "skip" | "live";
     proposer: { mode: "fixture" | "live"; model: string };
     github: GitHubStatus;
+    /** Where this deployment is reachable (ARCHITECT_PUBLIC_URL). Null means "use a relative link". */
+    publicUrl: string | null;
     /** Configuration this server can't honor (e.g. live models with no provider key). Variable names, never values. */
     problems: string[];
   };
@@ -306,7 +308,14 @@ export async function getWorkspace(
       origin: hasDefinition(project.slug) ? "definition" : "brief",
       brief: project.brief,
     },
-    env: { db: dbKind, ...getModes(), proposer, github: githubStatus(), problems: configReport(runtime).problems },
+    env: {
+      db: dbKind,
+      ...getModes(),
+      proposer,
+      github: githubStatus(),
+      publicUrl: publicUrl(),
+      problems: configReport(runtime).problems,
+    },
     busy: busyJob(),
     suggestedIntents: runtime.suggestedIntents?.(proposer.mode) ?? [],
     agents: workspaceAgents,

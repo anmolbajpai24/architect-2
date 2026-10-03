@@ -95,6 +95,9 @@ export async function buildShipArtifact(db: Db, ready: ShipReady, opts: { public
     .from(scenarioVersions)
     .where(and(eq(scenarioVersions.changeId, change.id), isNotNull(scenarioVersions.appliedAt)));
 
+  // Where the agents this PR describes are actually running. Null when the server doesn't know its own URL.
+  const previewUrl = opts.publicUrl ? `${opts.publicUrl}/preview/${change.projectId}` : null;
+
   const record = {
     change: label,
     id: change.id,
@@ -114,6 +117,8 @@ export async function buildShipArtifact(db: Db, ready: ShipReady, opts: { public
       liveAgents: summarizeRun(liveRun),
     },
     representation: "prototype: verified agent and scenario definitions, not generated application code",
+    /** The running system these definitions describe. Architect is the runtime; merging this PR deploys nothing. */
+    liveResult: previewUrl,
   };
 
   const files: FileChange[] = [
@@ -144,6 +149,7 @@ export async function buildShipArtifact(db: Db, ready: ShipReady, opts: { public
     "| | |",
     "|---|---|",
     `| Change | ${label}${opts.publicUrl ? ` ([open in Architect](${opts.publicUrl}/?change=${change.id}))` : ""} |`,
+    ...(previewUrl ? [`| Live result | [Use the running agents](${previewUrl}) |`] : []),
     `| Request | ${change.intent.replace(/\|/g, "\\|")} |`,
     `| Agents changed | ${changed.map((c) => `${c.name} v${c.from.version} → v${c.to.version}`).join(", ") || "none"} |`,
     `| Structural verification | Passed (${change.structural?.length ?? 0} checks) |`,
@@ -190,6 +196,12 @@ export async function buildShipArtifact(db: Db, ready: ShipReady, opts: { public
     `- \`${ARTIFACT_ROOT}/scenarios/*.json\`: the scenarios they were verified against`,
     `- \`${ARTIFACT_ROOT}/changes/${change.id}.json\`: this change and its verification record`,
     "",
+    ...(previewUrl
+      ? [
+          `The agents described here are already running at ${previewUrl} — Architect is their runtime, so merging this pull request deploys nothing. It records the verified state for review and history.`,
+          "",
+        ]
+      : []),
   ].join("\n");
 
   const commitMessage = [

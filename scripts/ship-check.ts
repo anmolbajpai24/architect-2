@@ -16,7 +16,8 @@ import { loadCurrentVersions, runScenarios } from "@/scenarios/runner";
 import { laptopAdvisor } from "@/demo/project";
 import { toProjectRuntime } from "@/projects/registry";
 import { getWorkspace } from "@/server/workspace";
-import { branchFor } from "@/shipping/artifact";
+import { branchFor, buildShipArtifact } from "@/shipping/artifact";
+import { checkShipGate } from "@/shipping/gate";
 import { shipChange, ShipError, type ShipInput } from "@/shipping/ship";
 import { createFakeGitHub } from "./fake-github";
 import { c, heading } from "./report";
@@ -139,6 +140,26 @@ try {
   check(pr?.title.startsWith(`Architect Change #${fix.id.slice(0, 6)}: `), `   title: "${pr?.title}"`);
   for (const phrase of ["Verified by Architect 2.0", "3/3 scenarios passing", "Structural verification | Passed", "only after the Architect change passed verification", "Prototype representation", "Keep the rule → Fix it"])
     check(Boolean(pr?.body.includes(phrase)), `   body mentions "${phrase}"`);
+
+  heading("Provenance: project → change → verification → artifact → live result");
+  const gate = await checkShipGate(db, fix.id);
+  check(gate.ok, "the shipped change still passes the gate it was shipped under");
+  if (gate.ok) {
+    const PUBLIC = "https://architect.example";
+    const liveUrl = `${PUBLIC}/preview/${projectId}`;
+    const withoutUrl = await buildShipArtifact(db, gate, { publicUrl: null });
+    const withUrl = await buildShipArtifact(db, gate, { publicUrl: PUBLIC });
+    check(!withoutUrl.body.includes("Live result"), "10. no live-result link when the server doesn't know its public URL");
+    check(withUrl.body.includes(`| Live result | [Use the running agents](${liveUrl}) |`), `    the PR links to the running system: ${liveUrl}`);
+    check(withUrl.body.includes("merging this pull request deploys nothing"), "    and says plainly that merging it deploys nothing");
+    const recordFile = withUrl.files.find((f) => f.path === `architect/changes/${fix.id}.json`);
+    const record = JSON.parse(recordFile?.content ?? "{}");
+    check(record.liveResult === liveUrl, "    the committed change record stores the live result URL");
+    check(
+      record.id === fix.id && record.verification.behavioral.passed === 3 && record.verification.structural.passed === true,
+      "    and ties the change id to its structural and behavioral verification",
+    );
+  }
 
   if (process.argv.includes("--print")) {
     console.log(c.dim(`
