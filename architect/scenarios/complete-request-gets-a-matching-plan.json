@@ -1,0 +1,41 @@
+{
+  "key": "complete-request-gets-a-matching-plan",
+  "version": 1,
+  "versionId": "6ed1e4c1-b124-45f6-9ac3-caefdaefb56d",
+  "name": "Complete request gets a matching plan",
+  "intent": "When the traveler gives everything, they get a day-by-day plan of the right length built around their interests.",
+  "input": {
+    "message": "Planning 4 days in Lisbon in May with my partner. Mid-range budget, around $1,600 for the two of us not counting flights. We love food and history, not big on nightlife."
+  },
+  "assertions": [
+    {
+      "description": "Enough information to plan.",
+      "type": "output",
+      "agent": "trip-requirements",
+      "path": "ready_to_plan",
+      "op": "eq",
+      "value": true
+    },
+    {
+      "description": "Exactly four days are planned.",
+      "type": "output",
+      "agent": "itinerary-builder",
+      "path": "day_count",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "description": "The reply presents an itinerary.",
+      "type": "output",
+      "agent": "trip-planner",
+      "path": "action",
+      "op": "eq",
+      "value": "itinerary"
+    },
+    {
+      "type": "judge",
+      "agent": "trip-planner",
+      "criterion": "The reply presents four distinct Lisbon days that clearly include food and historical activities and does not feature nightlife as a focus."
+    }
+  ]
+}

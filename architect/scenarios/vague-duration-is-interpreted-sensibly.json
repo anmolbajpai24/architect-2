@@ -1,0 +1,36 @@
+{
+  "key": "vague-duration-is-interpreted-sensibly",
+  "version": 1,
+  "versionId": "ae1feec7-1a9b-4ed2-8b99-c01ee6b4f971",
+  "name": "Vague duration is interpreted sensibly",
+  "intent": "Common phrases like 'long weekend' become a concrete trip length instead of a needless question.",
+  "input": {
+    "message": "Long weekend in Rome with friends, we're on a student budget. Art, pizza, and some people-watching."
+  },
+  "assertions": [
+    {
+      "description": "Long weekend is read as 3 days.",
+      "type": "output",
+      "agent": "trip-requirements",
+      "path": "duration_days",
+      "op": "eq",
+      "value": 3
+    },
+    {
+      "description": "Student budget maps to the budget level.",
+      "type": "output",
+      "agent": "trip-requirements",
+      "path": "budget_level",
+      "op": "eq",
+      "value": "budget"
+    },
+    {
+      "description": "Three days are planned.",
+      "type": "output",
+      "agent": "itinerary-builder",
+      "path": "day_count",
+      "op": "eq",
+      "value": 3
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "key": "unrealistic-budget-is-called-out",
+  "version": 1,
+  "versionId": "9a7103cf-3bf5-4801-9cb2-bdb4a0768222",
+  "name": "Unrealistic budget is called out",
+  "intent": "We never pretend an impossible budget works; we say so and offer a fix.",
+  "input": {
+    "message": "Plan me 7 days in Tokyo. My total budget is $200 including hotels and food. I'm into anime and street food."
+  },
+  "assertions": [
+    {
+      "description": "The budget is judged unrealistic.",
+      "type": "output",
+      "agent": "trip-requirements",
+      "path": "budget_feasibility",
+      "op": "eq",
+      "value": "unrealistic"
+    },
+    {
+      "type": "judge",
+      "agent": "trip-planner",
+      "criterion": "The reply plainly states that $200 for a week in Tokyo including lodging is not realistic and suggests at least one concrete alternative such as more budget, fewer days or a cheaper destination."
+    }
+  ]
+}

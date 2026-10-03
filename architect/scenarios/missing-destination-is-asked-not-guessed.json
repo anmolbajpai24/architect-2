@@ -1,0 +1,41 @@
+{
+  "key": "missing-destination-is-asked-not-guessed",
+  "version": 1,
+  "versionId": "53c8f8ba-6835-4f5d-a815-9c19d6f4353d",
+  "name": "Missing destination is asked, not guessed",
+  "intent": "If the traveler hasn't said where they're going, we ask instead of making up a destination.",
+  "input": {
+    "message": "I've got 5 days off next month and about $1,500. I love hiking and being outdoors. Can you plan something?"
+  },
+  "assertions": [
+    {
+      "description": "Destination is flagged as missing.",
+      "type": "output",
+      "agent": "trip-requirements",
+      "path": "missing_required",
+      "op": "contains",
+      "value": "destination"
+    },
+    {
+      "description": "No itinerary is built.",
+      "type": "output",
+      "agent": "itinerary-builder",
+      "path": "built",
+      "op": "eq",
+      "value": false
+    },
+    {
+      "description": "The reply asks for clarification.",
+      "type": "output",
+      "agent": "trip-planner",
+      "path": "action",
+      "op": "eq",
+      "value": "clarify"
+    },
+    {
+      "type": "judge",
+      "agent": "trip-planner",
+      "criterion": "The reply asks where the user wants to go, does not present a day-by-day itinerary for any specific destination, and acknowledges the hiking interest."
+    }
+  ]
+}

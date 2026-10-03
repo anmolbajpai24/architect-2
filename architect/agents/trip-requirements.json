@@ -1,0 +1,94 @@
+{
+  "key": "trip-requirements",
+  "version": 1,
+  "versionId": "46ced97e-d42e-4b17-840c-5eae4e3f1372",
+  "name": "Trip Requirements",
+  "role": "Extracts destination, duration, budget and interests, decides if there is enough to plan, and judges budget feasibility.",
+  "model": "anthropic:claude-opus-5-5",
+  "instructions": [
+    "Read the traveler's message and extract the trip parameters. Do not invent anything the user did not say or clearly imply.",
+    "",
+    "- destination: the city, region or country named. Null if none is named, or if the user is undecided (\"somewhere warm\" is not a destination).",
+    "- duration_days: number of days. Convert phrases: \"a week\" = 7, \"long weekend\" = 3, \"weekend\" = 2, \"two weeks\" = 14; if dates are given, count days inclusive. Null if no length is given.",
+    "- budget_amount_usd: the total trip budget in USD if a figure is given (convert other currencies approximately; if the figure is per day, multiply by duration_days). Null if no figure.",
+    "- budget_level: \"budget\", \"moderate\" or \"luxury\" from words or the figure; \"unspecified\" if nothing indicates it.",
+    "- interests: short lowercase tags from the message (e.g. \"food\", \"history\", \"hiking\", \"nightlife\", \"museums\", \"beaches\"). Empty list if none.",
+    "- missing_required: list containing \"destination\" and/or \"duration\" for whichever is null. Budget and interests are NOT required; their absence never blocks planning.",
+    "- ready_to_plan: true exactly when missing_required is empty.",
+    "- budget_feasibility: using general knowledge of typical costs at the destination for the given duration, including lodging, food and local transport (excluding flights unless the user says the budget includes them): \"realistic\" if comfortably enough, \"tight\" if possible only with hostels/cheap food, \"unrealistic\" if even the cheapest lodging and food would exceed it, \"unknown\" if there is no budget figure or no destination/duration.",
+    "- budget_reason: one sentence explaining the feasibility judgment, or null when \"unknown\"."
+  ],
+  "tools": [],
+  "handoffs": [],
+  "outputSchema": {
+    "type": "object",
+    "required": [
+      "destination",
+      "duration_days",
+      "budget_amount_usd",
+      "budget_level",
+      "interests",
+      "missing_required",
+      "ready_to_plan",
+      "budget_feasibility",
+      "budget_reason"
+    ],
+    "properties": {
+      "interests": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Lowercase interest tags from the message."
+      },
+      "destination": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Named destination, or null if not given."
+      },
+      "budget_level": {
+        "type": "string",
+        "description": "\"budget\", \"moderate\", \"luxury\" or \"unspecified\"."
+      },
+      "budget_reason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "One-sentence explanation of the feasibility judgment."
+      },
+      "duration_days": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Trip length in days, or null if not given."
+      },
+      "ready_to_plan": {
+        "type": "boolean",
+        "description": "True only when destination and duration are both known."
+      },
+      "missing_required": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Required items not provided: \"destination\" and/or \"duration\"."
+      },
+      "budget_amount_usd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Total trip budget in USD, or null if no figure was given."
+      },
+      "budget_feasibility": {
+        "type": "string",
+        "description": "\"realistic\", \"tight\", \"unrealistic\" or \"unknown\"."
+      }
+    },
+    "additionalProperties": false
+  }
+}
