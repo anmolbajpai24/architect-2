@@ -12,6 +12,17 @@ request → Change (new immutable AgentVersions) → structural check → behavi
 One Next.js app (App Router): route handlers for actions, Server-Sent Events for live progress, Postgres (Supabase,
 or in-process PGlite locally) through Drizzle. Agents run on the Vercel AI SDK. Details of each part live in `CLAUDE.md`.
 
+## Diagram
+
+![Architect 2.0 architecture](../architecture/architect-2-architecture.png)
+
+Source: `architecture/architect-2-architecture.drawio` (also exported as `.pdf`). Solid boxes are the prototype;
+dashed boxes are the production design described below, none of which is built. The diagram names the production
+pieces at whiteboard level: "Durable Job Queue" is the jobs table with leases, "Durable Workers" is the worker layer
+that covers verification, build and deployment, and "Project Runtime" is the agent harness plus the generated
+application inside the sandbox.
+"Model Provider" is a module in the server process (`src/runtime/models.ts`), not a separate service.
+
 ## Running it: local and production
 
 One Drizzle schema, two engines. Without `DATABASE_URL` Architect opens an in-process PGlite database, fresh per

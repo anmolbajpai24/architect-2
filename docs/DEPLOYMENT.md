@@ -1,13 +1,14 @@
 # Deploying Architect 2.0
 
-Architect runs as a single Next.js app. Nothing else is required: no queue, no worker, no sandbox. The two things
-it can talk to — Postgres and a model provider — are both optional locally and both expected in production.
+Architect runs as a single Next.js app. Nothing else is required: no queue, no worker, no sandbox. What it can talk
+to — Postgres, Supabase Auth (Google sign-in), a model provider and GitHub — is all optional locally; a public
+deployment needs the first three, and GitHub only for "Ship to GitHub".
 
-| | Database | Agents + proposer | Setup |
-| --- | --- | --- | --- |
-| Local demo | in-process PGlite | recorded fixtures | none |
-| Local, live models | in-process PGlite | Anthropic | an API key |
-| Production | Supabase Postgres | Anthropic | Supabase + Vercel + an API key |
+| | Database | Sign-in | Agents + proposer | Setup |
+| --- | --- | --- | --- | --- |
+| Local demo | in-process PGlite | off (no accounts) | recorded fixtures | none |
+| Local, live models | in-process PGlite | off, or Supabase Auth | Anthropic | an API key |
+| Production | Supabase Postgres | Google via Supabase Auth | Anthropic | Supabase + Google OAuth + Vercel + an API key |
 
 Every setting is read on the server, in `src/server/env.ts`. No variable is exposed to the browser: the client is
 given only the derived statuses in `WorkspaceSnapshot["env"]` (which mode, which model name, which repositories),
@@ -22,16 +23,29 @@ pnpm dev            # http://localhost:3000
 
 No credentials, no database, no network. Agents run on the deterministic fixture model, the proposer replays the
 recorded edits for the scripted demo request, and judge checks report as skipped. Storage is an in-process PGlite
-database that is created, migrated and seeded on first use, and thrown away when the server stops.
+database that is created, migrated and seeded on first use, and thrown away when the server stops. There are no
+accounts: every project is reachable.
+
+`/` lists the reference Laptop Advisor project; open it to run the key demo. Creating a project from a brief needs a
+connected model (there is no recorded plan for a brief nobody has written yet), and a generated project's agents
+only run in live mode, because only the reference project has recorded fixture behavior.
 
 The headless checks run the same way:
 
 ```bash
-pnpm scenarios:run        # every scenario against the current agent versions
-pnpm scenarios:regress    # the key demo end to end; non-zero exit if any step deviates
-pnpm ship:check           # shipping against an in-memory fake GitHub; never calls the real one
+pnpm scenarios:run          # every scenario against the current agent versions
+pnpm scenarios:regress      # the key demo end to end; non-zero exit if any step deviates
+pnpm ship:check             # shipping against an in-memory fake GitHub; never calls the real one
+pnpm example:auth-check     # reference example: public to view, sign-in to change; generated projects owner-only
+pnpm ship:auth-check        # who may ship a change (owner / signed-in on the example / nobody else)
+pnpm revisions:auth-check   # who may discard a rule-change draft
 pnpm typecheck
 ```
+
+`ship:check` and `scenarios:*` read `.env.local`: if it sets `DATABASE_URL`, they run against that database, and
+`ship:check`, `scenarios:regress` and `scenarios:run --reset` reset the demo project in it. Run them with
+`DATABASE_URL=` (empty) in the environment to stay on PGlite. The three
+`*:auth-check` scripts blank every credential themselves and refuse any network call except the fake GitHub.
 
 ## 2. Local, real models
 
@@ -65,7 +79,9 @@ pool of 3 per instance. The schema is the same Drizzle schema PGlite uses — on
 no Supabase-specific SQL. The migrations use only core Postgres (`uuid`, `jsonb`, `timestamptz`, `gen_random_uuid()`,
 `serial`), so no extension has to be enabled.
 
-No Supabase client library, Auth, Storage or Realtime is used: Supabase is the Postgres server, nothing more.
+Supabase is the Postgres server and, when `SUPABASE_URL` / `SUPABASE_ANON_KEY` are set, the Google sign-in provider
+(§6a, through `@supabase/ssr` on the server). Storage and Realtime are not used, and the data is not accessed
+through Supabase's client APIs or row-level security: authorization happens in the app (`src/server/access.ts`).
 
 ## 4. Environment variables
 
@@ -74,18 +90,23 @@ Server-side only. Never prefix one with `NEXT_PUBLIC_`.
 | Variable | Required | What it does |
 | --- | --- | --- |
 | `DATABASE_URL` | production | Postgres connection string. Unset = in-process PGlite (local only). |
-| `ANTHROPIC_API_KEY` | for live modes | Default provider for agents, proposer and judge. |
+| `SUPABASE_URL` | production | Supabase project URL, for Google sign-in (§6a). Unset (with the key) = no accounts. |
+| `SUPABASE_ANON_KEY` | production | Supabase anon key. Held server-side only; never sent to the browser. |
+| `ARCHITECT_PUBLIC_URL` | production | This deployment's origin. The OAuth redirect base, and the links a shipped PR carries back to the change and to the running project (`/preview/<projectId>`). |
+| `ANTHROPIC_API_KEY` | for live modes | Default provider for agents, proposer, planner and judge. |
 | `OPENAI_API_KEY` | optional | Only for a model configured with an `openai:` prefix. |
-| `ARCHITECT_MODEL_MODE` | `live` in production | `fixture` (default) or `live` agent runtime. `live` also turns the judge on. |
-| `ARCHITECT_PROPOSER` | `live` in production | `live` or `fixture`. Unset = live when the model's key is present. |
+| `ARCHITECT_MODEL_MODE` | `live` in production | `fixture` (default) or `live` agent runtime. `live` also turns the judge on. Generated projects need `live`. |
+| `ARCHITECT_PROPOSER` | `live` in production | Change, rule-change and project-planning model: `live` or `fixture`. Unset = live when the model's key is present. |
 | `ARCHITECT_JUDGE` | optional | `live` to score judge assertions without putting agents on live models. |
 | `ARCHITECT_PROPOSER_MODEL` | optional | Default `anthropic:claude-opus-5-5`. |
 | `JUDGE_MODEL` | optional | Default `anthropic:claude-opus-5-5`. |
-| `ARCHITECT_ALLOW_EPHEMERAL_DB` | no | Accepts a deployment with no `DATABASE_URL`. See the warning below. |
-| `ARCHITECT_GITHUB_TOKEN` | optional | Shipping credential; see §7. |
+| `ARCHITECT_GITHUB_TOKEN` | optional | Server-wide shipping credential; see §7. |
 | `ARCHITECT_GITHUB_REPOS` | optional | `owner/name` allowlist, comma separated. |
-| `ARCHITECT_PUBLIC_URL` | optional | Where this instance is reachable, so a PR can link back to the change. |
 | `ARCHITECT_GITHUB_API_URL` | optional | GitHub Enterprise Server API base. |
+| `ARCHITECT_PROJECT` | no | The code-defined project a request without `?project=` opens. Default `laptop-advisor`. |
+| `ARCHITECT_ALLOW_EPHEMERAL_DB` | no | Accepts a deployment with no `DATABASE_URL`. See the warning below. |
+
+`VERCEL` is set by the platform, not by you: it is how Architect knows it is on a managed host.
 
 A deployment with no `DATABASE_URL` is **refused**, with a message saying so. Each serverless instance would
 otherwise seed its own throwaway copy of the project, so a change verified by one request could be invisible to
@@ -116,11 +137,19 @@ Set in Project Settings → Environment Variables (Production, and Preview if yo
 
 ```
 DATABASE_URL=postgresql://...pooler.supabase.com:6543/postgres
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_ANON_KEY=<supabase-anon-key>
+ARCHITECT_PUBLIC_URL=https://<your-deployment>
 ANTHROPIC_API_KEY=sk-ant-...
 ARCHITECT_MODEL_MODE=live
 ARCHITECT_PROPOSER=live
-ARCHITECT_PUBLIC_URL=https://<your-deployment>
+# optional, for "Ship to GitHub" (§7)
+ARCHITECT_GITHUB_TOKEN=github_pat_...
+ARCHITECT_GITHUB_REPOS=<owner>/<demo-repository>
 ```
+
+Don't deploy publicly with live keys and sign-in off: without `SUPABASE_URL` / `SUPABASE_ANON_KEY` there are no
+accounts, so every project — and every model call and pull request it can trigger — is open to anyone.
 
 Then deploy and open `/api/health`:
 
@@ -132,9 +161,11 @@ Then deploy and open `/api/health`:
 `ok: false` lists what is wrong in `problems` — statuses and variable names only, never a value. The workspace's
 Environment panel shows the same problems to the person using it.
 
-The deployed app opens straight into the seeded Laptop Advisor project, which is demo data, not platform
-structure: agents, tools, scenarios and their assertions are rows, and `src/seed/` is the only place that knows
-about laptops.
+The deployed app opens on a home page: the reference Laptop Advisor project under "Examples", the viewer's own
+projects under "Your projects", and a brief box to create a new one (signed in). Laptop Advisor is demo data, not
+platform structure: agents, tools, scenarios and their assertions are rows, and only `src/seed/` and `src/demo/`
+know about laptops. Each project's workspace is `/workspace?project=<id>`; its running agents are at
+`/preview/<projectId>`.
 
 **Function limits.** Every route that can start model work declares `maxDuration = 300`. With fluid compute
 (on by default) 300s is Vercel's *default* maximum duration and the ceiling on every plan, Hobby included — Pro
@@ -174,11 +205,32 @@ Routes: `/auth/signin` starts the flow, `/auth/callback` exchanges the one-time 
 ends it. `src/middleware.ts` refreshes the access token on every request, because a Server Component can read
 cookies but not write them. Nothing is `NEXT_PUBLIC_`: the Supabase client only ever runs on the server.
 
-**Who can open what.** A project whose slug names a definition in code (Laptop Advisor) is a public reference
-example. Anything else belongs to the user who created it, and `src/server/access.ts` enforces that on every
-route and page — the home page listing is a convenience, not the control. A generated project with no owner
-predates sign-in: once sign-in is configured it is listed nowhere and opens for no one. To adopt one, set its
-owner directly:
+**Who can do what.** There are two kinds of project, and one check (`assertProjectAccess` in
+`src/server/access.ts`) that every route and page goes through — the home page listing is a convenience, not the
+control. A project whose slug names a definition in code (Laptop Advisor) is the public **reference example**;
+anything else was **generated from a brief** and belongs to the Google account that created it. Each request opens
+its project either to **view** it or to **change** it:
+
+| With sign-in configured | View (workspace, agents, scenarios, activity stream, preview page) | Change (propose, fix, apply, rule changes, run, preview chat, ship; reset, which only the example has) |
+| --- | --- | --- |
+| Reference example, signed out | allowed | **401** "Anyone can explore the demo. Sign in with Google to change or ship it." |
+| Reference example, any signed-in user | allowed | allowed |
+| Generated project, its owner | allowed | allowed |
+| Generated project, anyone else (signed in or not) | **403** | **403** |
+
+"Change" covers everything that mutates a project, spends a model call or reaches GitHub — which is why one preview
+chat turn needs sign-in on the example while the preview page itself does not. Creating a project
+(`POST /api/projects`) and planning one (`POST /api/projects/plan`) need a signed-in user (401 otherwise). The
+check runs before any write, job, model call or GitHub call, and a change or rule-change draft is always resolved
+to its own project first, so knowing an id is never enough. The workspace header offers "Sign in with Google" to a
+signed-out visitor and returns them to the same workspace.
+
+Without sign-in configured, all of the above is allowed for everyone, as it was before accounts existed.
+
+The reference example is one shared project: every signed-in user changes, resets and ships the same one (§8).
+
+A generated project with no owner predates sign-in: once sign-in is configured it is listed nowhere and opens for
+no one. To adopt one, set its owner directly:
 
 ```sql
 update projects set owner_id = '<supabase-user-id>' where slug = '<slug>';
@@ -196,8 +248,21 @@ Everything except the "Ship to GitHub" button works without this.
 
 The token stays on the server: the browser only learns whether GitHub is configured and which repositories are
 allowed. A change can only ship after Architect has verified it (`src/shipping/gate.ts`), and shipping opens a pull
-request — it never pushes to the default branch. See `docs/architecture.md` for the GitHub App design that replaces
-the token in production.
+request — it never pushes to the default branch.
+
+**Who may ship.** The ship route authorizes against the change's project before it takes the job lock, claims the
+shipment or calls GitHub: the owner for a generated project, any signed-in user for the reference example, nobody
+else (§6a). Then the verification gate applies.
+
+**One credential, one allowlist.** The prototype has a single server-wide token and repository allowlist, set up
+around the demo repository: every user who may ship ships to those same repositories, under that one identity.
+There is no per-user GitHub connection. Production replaces this with a GitHub App that each user installs on the
+repositories they choose, and a short-lived installation token per ship (`docs/architecture.md`).
+
+**What the pull request is.** The commit holds the verified agent and scenario definitions and the change's
+verification record as JSON under `architect/` — not application code. With `ARCHITECT_PUBLIC_URL` set, the PR
+links back to the change and to the running project. Merging it deploys nothing: the change went live when it was
+applied in Architect, which is the runtime.
 
 ## 8. Known prototype limitations
 
@@ -216,15 +281,26 @@ and none of them is hidden behind a mock that pretends to work.
   after 50 seconds so the browser reconnects inside the function limit; a `sync` event carries the sequence number
   so nothing is re-delivered. This is deliberately boring — it works identically on PGlite and Supabase and keeps
   the server stateless — but it is one query per client per tick, not a subscription.
-- **One project, seeded.** The demo project is created on first use and `POST /api/reset` restores it. There is no
-  project creation UI, no auth and no multi-user isolation: anyone who can reach the deployment can change the
-  agents. Don't deploy it publicly with a live key and expect it to stay untouched.
+- **Accounts are ownership, nothing more.** Google sign-in (Supabase Auth) plus one `owner_id` per project: no
+  teams, roles, sharing or invitations, and no admin. Authorization is enforced in the app's access layer, not by
+  database row-level security. Without the Supabase variables there are no accounts at all and everything is open.
+- **The reference example is shared.** It is one project for the whole deployment: any signed-in user can change,
+  reset and ship it, so visitors see and overwrite each other's work on it. Generated projects are isolated per
+  owner; the example is not copied per visitor.
+- **No quotas or rate limits.** Every model call runs on the server's one provider key. Sign-in is the only gate on
+  spend: a signed-in user can plan projects, run scenarios and chat with agents without limit. Production wants
+  per-user budgets and rate limiting at the edge.
 - **Agent execution is in-process.** Agents are LLM calls from the server; the registered tool (`search_catalog`)
-  reads the seeded catalog from the same database. There is no sandbox — E2B, generated application code and
-  running a user's own app are not built.
-- **No preview environment for the verified app.** Architect ships the verified agent system as JSON files in a
-  pull request (an honest representation of what it actually has), not a deployed application.
-- **GitHub auth is a personal access token.** Production wants a GitHub App installation token: short-lived,
-  scoped per installation, with repository selection as the connect step. The provider already takes a token
-  supplier, so this is a swap, not a rewrite.
+  reads the seeded catalog from the same database. A generated project has agents and scenarios but no tools of
+  its own and no generated code, and it only runs on live models (no recorded fixture behavior). There is no
+  sandbox — E2B, generated application code and running a user's own app are not built.
+- **Preview is not a deployment.** `/preview/<projectId>` runs a project's live agent versions in the Architect
+  server process, on the same deployment; applying a change is what makes it live. There is no per-project host,
+  build, artifact or environment. A shipped pull request holds the verified definitions as JSON (an honest
+  representation of what Architect actually has), and merging it deploys nothing. `docs/architecture.md` describes
+  the gateway, sandbox and deployment workers a production system would add; none of that is built.
+- **GitHub auth is one personal access token.** A single server-wide token and repository allowlist, configured
+  around the demo repository and shared by every user who may ship. Production wants a GitHub App that each user
+  installs on their own repositories, with a short-lived installation token per ship. The provider already takes a
+  token supplier, so this is a swap, not a rewrite; the per-user installation flow is not built.
 - **Migrations run on cold start.** Convenient, but concurrent cold starts can race (see §5).

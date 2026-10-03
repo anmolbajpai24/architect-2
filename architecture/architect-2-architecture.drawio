@@ -1,0 +1,183 @@
+<mxfile host="app.diagrams.net" agent="draw.io MCP" version="24.7.17">
+  <diagram id="architect-2-architecture" name="Architect 2.0 Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1180" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Architect 2.0 Architecture" style="text;html=1;align=center;verticalAlign=middle;fontSize=30;fontStyle=1;fontColor=#1F2937;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="300" y="16" width="1000" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Prototype validates the verification loop; production adds isolation and durable execution." style="text;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=2;fontColor=#4B5563;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="300" y="62" width="1000" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#9CA3AF;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="20" width="260" height="68" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend_solid" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#DAE8FC;strokeColor=#6C8EBF;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1314" y="31" width="36" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend_solid_text" value="Solid = implemented in prototype" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#1F2937;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1358" y="28" width="198" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend_dashed" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;" vertex="1" parent="1">
+          <mxGeometry x="1314" y="59" width="36" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend_dashed_text" value="Dashed = production design" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#1F2937;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1358" y="56" width="198" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="loop" value="&lt;span style=&quot;font-size:11px;color:#8A6D1B&quot;&gt;&lt;b&gt;THE CORE LOOP&lt;/b&gt;&lt;/span&gt;&lt;br&gt;&lt;b style=&quot;font-size:17px&quot;&gt;User request → Agent change → Structural verification → Scenario verification → Apply verified change → Preview → GitHub PR&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;Scenarios + Agent Versions + Verification Runs → persistent state in Postgres&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;fillColor=#FFF7E0;strokeColor=#D6A93B;strokeWidth=1.5;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="40" y="104" width="1520" height="82" as="geometry"/>
+        </mxCell>
+        <mxCell id="proto_region" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="204" width="1520" height="652" as="geometry"/>
+        </mxCell>
+        <mxCell id="proto_header" value="&lt;b style=&quot;font-size:14px;color:#1F2937&quot;&gt;CURRENT PROTOTYPE — implemented&lt;/b&gt;&lt;br&gt;Next.js application · Postgres / PGlite · in-process agent execution · server-side preview · server-side GitHub token · Supabase Google authentication" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;fontColor=#475569;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="58" y="210" width="1480" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="layer1" value="1 · USER / INTERFACE" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#64748B;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="330" y="251" width="300" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="user" value="&lt;b style=&quot;font-size:15px&quot;&gt;User&lt;/b&gt;&lt;br&gt;browser" style="rounded=1;whiteSpace=wrap;html=1;arcSize=40;fillColor=#FFFFFF;strokeColor=#334155;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="90" y="287" width="160" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="webapp" value="&lt;b style=&quot;font-size:16px&quot;&gt;Architect Web App&lt;/b&gt;&lt;br&gt;Next.js UI · live progress over SSE&lt;br&gt;&lt;b&gt;Workspace · Scenario Verification · Agent Changes · Preview · GitHub Shipping&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#DAE8FC;strokeColor=#6C8EBF;strokeWidth=2;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="330" y="272" width="590" height="92" as="geometry"/>
+        </mxCell>
+        <mxCell id="layer2" value="2 · ARCHITECT BACKEND" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#64748B;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="330" y="399" width="250" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="web_backend_label" value="route handlers · SSE progress events" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#334155;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="638" y="381" width="270" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="backend" value="&lt;b style=&quot;font-size:16px&quot;&gt;Architect Backend&lt;/b&gt;&amp;nbsp;&amp;nbsp; one Next.js server process" style="rounded=1;whiteSpace=wrap;html=1;arcSize=4;fillColor=#DAE8FC;strokeColor=#6C8EBF;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=16;spacingTop=8;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="330" y="420" width="590" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="pas" value="&lt;b style=&quot;font-size:14px&quot;&gt;Project &amp;amp; Agent State&lt;/b&gt;&lt;br&gt;immutable versions · access rules" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="backend">
+          <mxGeometry x="20" y="50" width="250" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="cp" value="&lt;b style=&quot;font-size:14px&quot;&gt;Change Proposer&lt;/b&gt;&lt;br&gt;LLM drafts changes and fixes" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="backend">
+          <mxGeometry x="320" y="50" width="250" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="sve" value="&lt;b style=&quot;font-size:14px&quot;&gt;Scenario / Verification Engine&lt;/b&gt;&lt;br&gt;structural check → every scenario" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="backend">
+          <mxGeometry x="20" y="130" width="250" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="prev" value="&lt;b style=&quot;font-size:14px&quot;&gt;Preview Runtime&lt;/b&gt;&lt;br&gt;one turn on the live versions" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="backend">
+          <mxGeometry x="20" y="210" width="250" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ah" value="&lt;b style=&quot;font-size:14px&quot;&gt;Agent Harness&lt;/b&gt;&lt;br&gt;runs agents, tools and handoffs&lt;br&gt;&lt;br&gt;one execution path for&lt;br&gt;verification and preview" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="backend">
+          <mxGeometry x="320" y="130" width="250" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_sve_ah" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.214;entryDx=0;entryDy=0;" edge="1" parent="backend" source="sve" target="ah">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_prev_ah" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.786;entryDx=0;entryDy=0;" edge="1" parent="backend" source="prev" target="ah">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="auth" value="&lt;b style=&quot;font-size:14px&quot;&gt;Google / Supabase Auth&lt;/b&gt;&lt;br&gt;Google OAuth · session cookie" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#F5F5F5;strokeColor=#666666;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="70" y="480" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="pg" value="&lt;b style=&quot;font-size:15px&quot;&gt;Postgres&lt;/b&gt;&lt;br&gt;Supabase · PGlite locally" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=11;fillColor=#D5E8D4;strokeColor=#82B366;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="495" y="764" width="260" height="78" as="geometry"/>
+        </mxCell>
+        <mxCell id="pg_label" value="Projects, agents, scenarios, changes, verification runs" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontSize=12;fontStyle=2;fontColor=#475569;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="772" y="782" width="225" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="mp" value="&lt;b style=&quot;font-size:15px&quot;&gt;Model Provider&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;Provider abstraction&lt;/span&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;Vercel AI SDK ·&lt;br&gt;live or fixture model&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="475" width="200" height="135" as="geometry"/>
+        </mxCell>
+        <mxCell id="ao" value="&lt;b style=&quot;font-size:14px&quot;&gt;Anthropic / OpenAI&lt;/b&gt;&lt;br&gt;model APIs" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#F5F5F5;strokeColor=#666666;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="1310" y="510" width="210" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="gh" value="&lt;b style=&quot;font-size:14px&quot;&gt;GitHub&lt;/b&gt;&lt;br&gt;REST API · branch + commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#F5F5F5;strokeColor=#666666;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="665" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="pr" value="&lt;b style=&quot;font-size:14px&quot;&gt;Pull Request&lt;/b&gt;&lt;br&gt;a record · merging deploys nothing" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#F5F5F5;strokeColor=#666666;strokeWidth=1.5;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="1310" y="665" width="210" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="gh_note_proto" value="&lt;b&gt;Prototype:&lt;/b&gt; server-side GitHub token + repository allowlist" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=1.5;align=left;spacingLeft=10;fontSize=12;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="745" width="480" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="gh_note_prod" value="&lt;b&gt;Production:&lt;/b&gt; GitHub App + per-user repository access" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;align=left;spacingLeft=10;fontSize=12;fontColor=#4B5563;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="783" width="480" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_user_web" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="user" target="webapp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_web_backend" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="webapp" target="backend">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_user_auth" value="Google sign-in" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;fontSize=12;fontColor=#334155;labelBackgroundColor=#F8FAFC;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="user" target="auth">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_auth_backend" value="session" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;fontSize=12;fontColor=#334155;labelBackgroundColor=none;verticalAlign=bottom;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3167;entryDx=0;entryDy=0;" edge="1" parent="1" source="auth" target="backend">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_backend_pg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="backend" target="pg">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_cp_mp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.185;entryDx=0;entryDy=0;" edge="1" parent="1" source="cp" target="mp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_ah_mp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.815;entryDx=0;entryDy=0;" edge="1" parent="1" source="ah" target="mp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_mp_ao" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="mp" target="ao">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_backend_gh" value="Verified change" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;fontSize=12;fontStyle=1;fontColor=#334155;labelBackgroundColor=none;verticalAlign=bottom;exitX=1;exitY=0.9167;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="backend" target="gh">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_gh_pr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gh" target="pr">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="prod_region" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=4;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=2;dashed=1;dashPattern=8 6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="880" width="1520" height="276" as="geometry"/>
+        </mxCell>
+        <mxCell id="prod_header" value="&lt;b style=&quot;font-size:14px;color:#1F2937&quot;&gt;3 · PRODUCTION EVOLUTION&lt;/b&gt;&lt;br&gt;&lt;b&gt;Production target — designed, not built&lt;/b&gt;&lt;br&gt;&lt;br&gt;• durable workers&lt;br&gt;• isolated project sandbox&lt;br&gt;• preview gateway&lt;br&gt;• GitHub App&lt;br&gt;• horizontal scaling" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;fontColor=#4B5563;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="58" y="890" width="250" height="250" as="geometry"/>
+        </mxCell>
+        <mxCell id="prod_tagline" value="in-process execution&amp;nbsp; →&amp;nbsp; isolated, durable, horizontally scalable execution" style="text;html=1;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#4B5563;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="560" y="893" width="980" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="q" value="&lt;b style=&quot;font-size:14px&quot;&gt;Durable Job Queue&lt;/b&gt;&lt;br&gt;jobs table + leases in Postgres" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;fontSize=12;fontColor=#4B5563;" vertex="1" parent="1">
+          <mxGeometry x="320" y="945" width="200" height="68" as="geometry"/>
+        </mxCell>
+        <mxCell id="w" value="&lt;b style=&quot;font-size:14px&quot;&gt;Durable Workers&lt;/b&gt;&lt;br&gt;verification · build · deploy&lt;br&gt;outlive the request · scale out" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;fontSize=12;fontColor=#4B5563;" vertex="1" parent="1">
+          <mxGeometry x="590" y="945" width="190" height="68" as="geometry"/>
+        </mxCell>
+        <mxCell id="sb" value="&lt;b style=&quot;font-size:14px&quot;&gt;Isolated Project Sandbox&lt;/b&gt;&lt;br&gt;microVM / container per project" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;fontSize=12;fontColor=#4B5563;" vertex="1" parent="1">
+          <mxGeometry x="850" y="945" width="220" height="68" as="geometry"/>
+        </mxCell>
+        <mxCell id="rt" value="&lt;b style=&quot;font-size:14px&quot;&gt;Project Runtime&lt;/b&gt;&lt;br&gt;agent harness + generated app" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;fontSize=12;fontColor=#4B5563;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="945" width="180" height="68" as="geometry"/>
+        </mxCell>
+        <mxCell id="gw" value="&lt;b style=&quot;font-size:14px&quot;&gt;Preview Gateway&lt;/b&gt;&lt;br&gt;per-project URL · auth" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;fontSize=12;fontColor=#4B5563;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="945" width="160" height="68" as="geometry"/>
+        </mxCell>
+        <mxCell id="jobs_note" value="&lt;b&gt;Durable jobs&lt;/b&gt;&lt;br&gt;• retries&lt;br&gt;• leases&lt;br&gt;• horizontal workers" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;fontColor=#4B5563;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="324" y="1028" width="450" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="sandbox_note" value="&lt;b&gt;Sandbox&lt;/b&gt;&lt;br&gt;• filesystem/process isolation&lt;br&gt;• network controls&lt;br&gt;• project credentials" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;fontColor=#4B5563;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="854" y="1028" width="460" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_backend_q" value="enqueue job&lt;br&gt;(today: in-process)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;fontSize=12;fontColor=#6B7280;labelBackgroundColor=#F8FAFC;exitX=0.1525;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="backend" target="q">
+          <mxGeometry x="-0.35" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_q_w" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="q" target="w">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_w_sb" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="w" target="sb">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_sb_rt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="sb" target="rt">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_gw_rt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#6B7280;strokeWidth=1.5;dashed=1;dashPattern=6 4;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gw" target="rt">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

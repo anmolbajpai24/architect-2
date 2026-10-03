@@ -25,13 +25,15 @@ The owner holds the full product spec separately. Do not redesign the product or
 
 ## Stack
 
-Next.js App Router, TypeScript, Tailwind, shadcn/ui, Supabase Postgres, Drizzle, Zod, Vercel AI SDK,
-Anthropic + OpenAI, SSE. GitHub via REST over fetch (no Octokit). E2B only if there is time.
+Next.js App Router, TypeScript, Tailwind, shadcn/ui, Supabase Postgres + Supabase Auth (Google sign-in, via
+`@supabase/ssr`), Drizzle, Zod, Vercel AI SDK, Anthropic + OpenAI, SSE. GitHub via REST over fetch (no Octokit).
+E2B is not built.
 
 ## Do NOT add
 
 Kubernetes, microservices, Redis, Kafka, Temporal/Inngest/BullMQ, WebSockets, LangChain/LangGraph,
-multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessary abstractions.
+multiple sandbox providers, custom auth (sign-in is Supabase Auth; don't build another), RBAC, billing,
+collaboration, unnecessary abstractions.
 
 ## Working rules
 
@@ -59,16 +61,24 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - `pnpm scenarios:regress [--judge] [--live]`: the key demo end to end; exits non-zero if any step deviates.
 - `pnpm ship:check [--print]`: Ship to GitHub against an in-memory fake GitHub (gate, branch/commit/PR, provenance,
   duplicates, failure events). Never calls the real GitHub.
+- `pnpm example:auth-check`, `pnpm ship:auth-check`, `pnpm revisions:auth-check`: the access rules, through the real
+  route handlers (viewer mocked with `node:test` module mocks). Each blanks every credential, runs on PGlite and
+  blocks any network call except the fake GitHub.
 - `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate` (applies `drizzle/` to `DATABASE_URL`).
+- `ship:check` and `scenarios:*` load `.env.local`: with `DATABASE_URL` set there they run against that database
+  (and `ship:check` / `scenarios:regress` reset the demo project in it). Prefix with `DATABASE_URL=` to stay on PGlite.
 
 ## Workspace UI (Phase 2)
 
-- `pnpm dev` → http://localhost:3000. Single demo project; `/` renders the workspace.
+- `pnpm dev` → http://localhost:3000. `/` is the home page (examples, your projects, create from a brief);
+  `/workspace?project=<id|slug>` is a project's workspace (no selector → the configured project);
+  `/preview/<projectId>` is its running agents.
 - Server: `src/server/context.ts` (one DB handle per process on `globalThis`, background jobs via Next `after()`,
   one job at a time), `src/server/workspace.ts` (the single read model the UI renders).
-- Routes (`src/app/api/*`): `GET workspace`, `GET events` (SSE, polls the events table from `?after=seq`),
-  `POST runs`, `POST changes`, `POST changes/:id/fix`, `POST changes/:id/apply` (applies, then re-runs scenarios),
-  `POST reset`.
+- Routes (`src/app/api/*`), project chosen by `?project=`: `GET workspace`, `GET events` (SSE, polls the events
+  table from `?after=seq`), `POST runs`, `POST changes`, `POST changes/:id/fix`, `POST changes/:id/apply` (applies,
+  then re-runs scenarios), `POST changes/:id/ship`, `POST reset` (code-defined projects only), `POST preview`,
+  `POST projects/plan`, `POST projects`, `GET health`. Sign-in: `/auth/signin`, `/auth/callback`, `/auth/signout`.
 - Client (`src/components/workspace/*`): `useWorkspace` = snapshot + EventSource; events drive live progress and
   a debounced snapshot refetch.
 - Change proposer (`src/changes/proposer.ts`): `draftChange` / `draftFix` call an LLM via `generateText` +
@@ -77,7 +87,7 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
   The draft prompt sees live configs + request only (not scenarios); the fix prompt also sees protected behaviors
   and the blocked change's failures. Rationale/mode/model are stored in `changes.proposal`.
   `ARCHITECT_PROPOSER=live|fixture` (unset → live if the key exists), `ARCHITECT_PROPOSER_MODEL`
-  (default `anthropic:claude-opus-5-5`). Fixture mode (`fixture-proposer.ts`) replays the demo edits through
+  (default `anthropic:claude-opus-5-5`). Fixture mode (`src/demo/fixture-proposer.ts`) replays the demo edits through
   the same structured-output path. Routes draft synchronously under the busy lock and emit
   `change.drafting` / `change.draft_failed`.
 - UI env: `ARCHITECT_MODEL_MODE=live`, `ARCHITECT_JUDGE=live`. PGlite state is per server process.
@@ -109,7 +119,7 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - Scenario proposer (`src/scenarios/proposer.ts`): separate from the Change proposer, same live/fixture switch.
   Structured output limited to tool/output/judge + existing operators, real agents/tools; rejects judge-only rules,
   bad values, unknown paths (via `checkStructure`), identical rules; `representable: false` → explanation.
-  Fixture (`src/scenarios/fixture-proposer.ts`) knows only the scripted $600 → $900 request.
+  Fixture (`src/demo/fixture-scenario-proposer.ts`) knows only the scripted $600 → $900 request.
 - Flow (`src/scenarios/revisions.ts`): draft = proposed version (live rule untouched) → user reviews diff → explicit
   apply (stale + structural guards, pointer moves, change marked `change_rule` and set back to `proposed`) → background
   `verifyRuleChange`: all scenarios vs live agents, then `verifyChange` on the blocked change. Failures stay failures.
@@ -130,8 +140,13 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
   `src/github/config.ts`: `ARCHITECT_GITHUB_TOKEN`, `ARCHITECT_GITHUB_REPOS` (allowlist), optional `ARCHITECT_PUBLIC_URL`,
   `ARCHITECT_GITHUB_API_URL`. Server-only; the client only sees `env.github` (configured, repositories, problems).
 - Route: `POST /api/changes/:id/ship` `{repository?}` → 201 shipped, 200 already shipped, 404/409 gate, 400 repo not
-  allowed, 503 not configured, 502 GitHub error. `/?change=<id>` opens a change (linked from the PR).
-- Production design (documented, not built): GitHub App → short-lived installation token. See `docs/architecture.md`.
+  allowed, 503 not configured, 502 GitHub error, 401/403 access (checked first, before the busy lock, the shipment
+  claim and GitHub). `/?change=<id>` opens a change (linked from the PR).
+- Prototype: one server-wide token + allowlist, set up around the demo repository; every user who may ship ships
+  there. The PR is a record (JSON definitions + verification), links to the change and `/preview/<projectId>`, and
+  merging it deploys nothing.
+- Production design (documented, not built): per-user GitHub App installation → short-lived installation token.
+  See `docs/architecture.md`.
 
 ## Deployment (Phase 6A)
 
@@ -142,12 +157,46 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
   scripts, and exposes `redactSecrets` for anything that leaves the server. Nothing is `NEXT_PUBLIC_`.
 - `src/server/config.ts` derives one `ConfigReport` (statuses and variable names, never values) for `GET /api/health`
   and for `env.problems` in the workspace snapshot, shown as "Needs attention" in the Environment popover.
-  `liveModelProblem()` makes every route that would call a provider return 503 with a plain-language message when a
-  live mode has no key: no silent fallback to fixtures. `src/app/error.tsx` points a failed boot at `/api/health`.
-- Vercel: `vercel.json` is framework + frozen install only; `maxDuration = 60` is declared per route (route segment
-  config, not `vercel.json`). SSE closes at 50s and the browser resumes from a `sync` event's id.
+  `agentRuntimeProblem()` makes every route that would run agents return 503 with a plain-language message when a
+  live mode has no key (or a project has no fixture behavior in Demo mode): no silent fallback to fixtures.
+  `src/app/error.tsx` points a failed boot at `/api/health`.
+- Vercel: `vercel.json` is framework + frozen install only; `maxDuration` is declared per route (route segment
+  config, not `vercel.json`): 300 for routes that call a model, 60 for ship/events/project creation, 30 for health.
+  SSE closes at 50s and the browser resumes from a `sync` event's id.
 - Prototype limits are documented, not papered over, in `docs/DEPLOYMENT.md` §8: the one-job lock is process-local,
-  `after()` jobs die at the route limit, SSE is a poll, migrations run on cold start.
+  `after()` jobs die at the route limit, SSE is a poll, migrations run on cold start, the example project is shared,
+  there are no quotas, preview is in-process (not a deployment), GitHub is one server-wide token.
+
+## Projects, preview and live result
+
+- Two kinds of project (`src/projects/registry.ts`). **Reference example**: its slug names a definition in code
+  (`src/demo/project.ts`, Laptop Advisor) — tools, simulator, fixture proposers, seed (`src/seed/`). **Generated**:
+  created from a brief; the row carries `brief`, `judgeContext`, `responsePath`, `ownerId`; no tools, no simulator,
+  so it only runs with `ARCHITECT_MODEL_MODE=live`.
+- Create from a brief: `POST /api/projects/plan` (`src/projects/planner.ts`, one model call through the proposer
+  config, writes nothing; needs a live proposer) → user reviews the blueprint → `POST /api/projects`
+  (`blueprint.ts` re-parses and normalizes, `materialize.ts` creates it in one transaction; slug derived server-side).
+- Preview (`/preview/[projectId]`, `POST /api/preview`, `src/preview/session.ts`): one turn = one `runSystem` call on
+  the live agent versions, same path as verification; writes nothing, takes no job lock.
+- "Live result" (`live-result.tsx`, verdict drawer step 4): applying a change is the release; the project's live URL
+  is `/preview/<projectId>` on this deployment. No build, sandbox or per-project host exists.
+
+## Auth and access
+
+- Sign-in is optional: Supabase Auth, Google only (`src/server/auth.ts`, `src/middleware.ts` refreshes the session).
+  No user table: `projects.owner_id` holds the Supabase user id. `SUPABASE_URL` + `SUPABASE_ANON_KEY` unset → no
+  accounts, everything open (local and offline demo). The scripts never import `auth.ts` / `access.ts` (they need
+  request cookies); only routes and pages do.
+- `src/server/access.ts` is the only authorization: `openProject(db, selector, access)` /
+  `openProjectById(db, id, access)` → `assertProjectAccess`. `access` is `"view"` (default) or `"change"`; every
+  route that mutates, spends a model call or reaches GitHub passes `"change"`. A new mutating route must too.
+- Rules (sign-in configured): reference example — anyone may view, any signed-in user may change, signed-out change
+  → `SignInRequired` → 401. Generated project — owner only for both, everyone else `ProjectForbidden` → 403.
+  `forbiddenResponse` maps both. Routes reached by a change/revision id resolve its project first, then authorize,
+  before any write, lock, job, model call or GitHub call.
+- `POST projects` / `projects/plan` need a signed-in user (401). Pages use `openProject` and `notFound()`.
+- The workspace header shows `AuthButton` (sign in → returns to the same workspace) when sign-in is configured; the
+  viewer is a separate `viewer` prop from `workspace/page.tsx`, not part of the snapshot.
 
 ## Phases
 
@@ -161,7 +210,12 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - Phase 5 (done): Ship to GitHub (verified, applied change → branch, commit, pull request).
 - Phase 6A (done): deployment readiness — environment model, Supabase path, health endpoint, Vercel limits,
   `docs/DEPLOYMENT.md`. No new product features.
-- Not yet: E2B / generated-app execution, auth, GitHub App installation flow.
+- Project-agnostic runtime (done): the demo is one `ProjectDefinition`; projects can be created from a brief.
+- Preview and live result (done): `/preview/<projectId>` runs the live agents; applying is the release.
+- Auth and ownership (done): Google sign-in, owner-only generated projects, public-to-view example with sign-in to
+  change, access checks on ship and rule-change discard.
+- Not yet: E2B / sandboxed or generated-app execution, real deployment of a generated app, per-user GitHub App
+  installation flow, quotas/rate limits, teams/sharing.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
