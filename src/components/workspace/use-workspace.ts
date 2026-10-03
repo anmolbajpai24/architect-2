@@ -110,6 +110,10 @@ export function useWorkspace(initial: WorkspaceSnapshot) {
       post<{ revisionId: string }>("Drafting rule change", "/api/scenario-revisions", { changeId, scenarioKey, request }),
     applyRuleChange: (revisionId: string) => post("Applying new rule", `/api/scenario-revisions/${revisionId}/apply`),
     discardRuleChange: (revisionId: string) => post("Discarding draft", `/api/scenario-revisions/${revisionId}/discard`),
+    shipChange: (changeId: string, repository: string) =>
+      post<{ alreadyShipped: boolean; shipment: { prNumber: number; prUrl: string } }>("Shipping to GitHub", `/api/changes/${changeId}/ship`, {
+        repository,
+      }),
     reset: () => post("Resetting demo", "/api/reset"),
   };
 }

@@ -9,6 +9,7 @@
     "start": "next start",
     "scenarios:run": "tsx scripts/scenarios-run.ts",
     "scenarios:regress": "tsx scripts/scenarios-regress.ts",
+    "ship:check": "tsx scripts/ship-check.ts",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit"
   },

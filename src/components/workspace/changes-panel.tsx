@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, CornerDownRight, GitPullRequestArrow, LoaderCircle, Sparkles } from "lucide-react";
+import { ArrowRight, CornerDownRight, GitPullRequest, GitPullRequestArrow, LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkspaceChange, WorkspaceEvent, WorkspaceSnapshot } from "@/server/workspace";
@@ -117,6 +117,11 @@ function ChangeCard({
         <GitPullRequestArrow className="size-3.5 text-muted-foreground" />
         <span className="font-mono text-[11px] text-muted-foreground">#{shortId(change.id)}</span>
         <ChangeStatusPill status={change.status} resolution={change.resolution} />
+        {change.shipment?.status === "shipped" && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+            <GitPullRequest className="size-3" /> PR #{change.shipment.prNumber}
+          </span>
+        )}
         <RelativeTime iso={change.createdAt} className="ml-auto text-[11px] text-muted-foreground" />
       </div>
       <p className="mt-2 text-[13px] leading-snug">“{change.intent}”</p>

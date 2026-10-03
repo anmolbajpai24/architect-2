@@ -38,11 +38,11 @@ function Column({ title, children, className }: { title: string; children: React
   );
 }
 
-export function Workspace({ initial }: { initial: WorkspaceSnapshot }) {
+export function Workspace({ initial, initialChangeId = null }: { initial: WorkspaceSnapshot; initialChangeId?: string | null }) {
   const api = useWorkspace(initial);
   const { snapshot, events, progress } = api;
   const [selection, setSelection] = useState<Selection>({ kind: "scenario", key: initial.scenarios[0]?.key });
-  const [openChangeId, setOpenChangeId] = useState<string | null>(null);
+  const [openChangeId, setOpenChangeId] = useState<string | null>(initialChangeId);
 
   const latestRun = snapshot.runs[0];
   const streaming = streamingProgress(latestRun, progress);
@@ -94,6 +94,14 @@ export function Workspace({ initial }: { initial: WorkspaceSnapshot }) {
           <EnvBadge
             label={`${snapshot.env.mode} models`}
             hint={snapshot.env.mode === "fixture" ? "Agents run on the deterministic fixture model so the demo reproduces exactly. Set ARCHITECT_MODEL_MODE=live for real models." : "Agents run on the provider models in their configs."}
+          />
+          <EnvBadge
+            label={snapshot.env.github.configured ? `github: ${snapshot.env.github.repositories.join(", ")}` : "github off"}
+            hint={
+              snapshot.env.github.configured
+                ? "Verified, applied changes can be shipped as pull requests to these repositories. The GitHub credential stays on the server."
+                : `Shipping to GitHub is off: ${snapshot.env.github.problems.join("; ")}. Everything else works without it.`
+            }
           />
           <EnvBadge
             label={`judge ${snapshot.env.judge === "live" ? "on" : "off"}`}

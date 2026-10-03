@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCheck, CornerDownRight, FilePen, Hammer, LoaderCircle, Rocket, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCheck, CornerDownRight, FilePen, GitPullRequest, Hammer, LoaderCircle, Rocket, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { WorkspaceChange, WorkspaceSnapshot } from "@/server/workspace";
@@ -11,6 +11,7 @@ import { agentName, versionNumber } from "./changes-panel";
 import { modelLabel, shortId } from "./format";
 import { InstructionDiff } from "./instruction-diff";
 import { RuleChangePanel } from "./rule-change-panel";
+import { ShipPanel } from "./ship-panel";
 import { Reply } from "./scenario-inspector";
 import { ChangeStatusPill, StatusIcon } from "./status";
 import type { Progress, WorkspaceApi } from "./use-workspace";
@@ -385,6 +386,24 @@ function VerdictBody({
           </Callout>
         )}
       </section>
+
+      {change.status === "applied" && (
+        <Step
+          n={3}
+          title="Ship to GitHub"
+          state={
+            change.shipment?.status === "shipped"
+              ? "pass"
+              : change.shipment?.status === "failed"
+                ? "fail"
+                : change.shipment?.status === "shipping" || api.busyLabel === "Shipping to GitHub"
+                  ? "running"
+                  : "pending"
+          }
+        >
+          <ShipPanel change={change} snapshot={snapshot} run={run} api={api} />
+        </Step>
+      )}
     </div>
   );
 }
@@ -424,6 +443,11 @@ export function VerdictDrawer({
               <div className="flex items-center gap-2 pr-8">
                 <span className="font-mono text-xs text-muted-foreground">Change #{shortId(change.id)}</span>
                 <ChangeStatusPill status={change.status} resolution={change.resolution} />
+                {change.shipment?.status === "shipped" && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    <GitPullRequest className="size-3" /> PR #{change.shipment.prNumber}
+                  </span>
+                )}
               </div>
               <SheetTitle className="text-lg leading-snug">“{change.intent}”</SheetTitle>
               <SheetDescription>Every change is checked structurally, then against every scenario, before it can go live.</SheetDescription>

@@ -29,6 +29,13 @@
       "when": 1790989724865,
       "tag": "0003_scenario_drop_inline_content",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790991446709,
+      "tag": "0004_change_shipments",
+      "breakpoints": true
     }
   ]
 }

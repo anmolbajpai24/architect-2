@@ -68,6 +68,12 @@ export function describeEvent(e: WorkspaceEvent, snapshot: WorkspaceSnapshot): {
       return { text: `Rule changed: ${scenarioName(p.scenario)} v${p.fromVersion} → v${p.toVersion}`, tone: "default" };
     case "change.applied":
       return { text: "Change applied to the live agents", tone: "good" };
+    case "change.shipping":
+      return { text: `Shipping to GitHub: opening a pull request on ${p.repository}`, tone: "muted" };
+    case "change.shipped":
+      return { text: `Shipped to GitHub: PR #${p.prNumber} on ${p.repository}`, tone: "good" };
+    case "change.ship_failed":
+      return { text: `Shipping to GitHub failed (${p.step}): ${p.message}`, tone: "bad" };
     case "job.failed":
       return { text: `${p.job} failed: ${p.message}`, tone: "bad" };
     default:

@@ -26,7 +26,7 @@ The owner holds the full product spec separately. Do not redesign the product or
 ## Stack
 
 Next.js App Router, TypeScript, Tailwind, shadcn/ui, Supabase Postgres, Drizzle, Zod, Vercel AI SDK,
-Anthropic + OpenAI, SSE. Later: Octokit/GitHub App. E2B only if there is time.
+Anthropic + OpenAI, SSE. GitHub via REST over fetch (no Octokit). E2B only if there is time.
 
 ## Do NOT add
 
@@ -57,6 +57,8 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 
 - `pnpm scenarios:run [--reset] [--judge] [--live]`: run all scenarios against the current agent versions.
 - `pnpm scenarios:regress [--judge] [--live]`: the key demo end to end; exits non-zero if any step deviates.
+- `pnpm ship:check [--print]`: Ship to GitHub against an in-memory fake GitHub (gate, branch/commit/PR, provenance,
+  duplicates, failure events). Never calls the real GitHub.
 - `pnpm typecheck`, `pnpm db:generate`.
 
 ## Workspace UI (Phase 2)
@@ -100,6 +102,22 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - The demo stays in USD (owner's decision): the no-match scenario is "gaming laptop under $600, never recommend above
   the budget"; the scripted rule change is "allow up to $900 when nothing suitable exists under $600".
 
+## Ship to GitHub (Phase 5)
+
+- Invariant: a Change ships only after verification. `src/shipping/gate.ts` (server-enforced, read-only): applied,
+  structural ok, passing verification run, live agents == that run's version set, a live run since apply where every
+  current scenario version passes. The workspace shows the same gate (`change.ship`) for applied changes.
+- `src/shipping/ship.ts`: claim (`change_shipments`, unique per change) → branch `architect/change-<id>` from the default
+  branch → one commit (`src/shipping/artifact.ts`: `architect/agents|scenarios|changes/*` JSON, honest prototype
+  representation, no timestamps in agent/scenario files) → PR. Idempotent: shipped → recorded PR (no GitHub calls);
+  retry reuses branch, skips identical tree, reuses PR. Events: `change.shipping` / `change.shipped` / `change.ship_failed`.
+- `src/github/provider.ts`: the only GitHub client (REST over fetch, no SDK); token from a supplier.
+  `src/github/config.ts`: `ARCHITECT_GITHUB_TOKEN`, `ARCHITECT_GITHUB_REPOS` (allowlist), optional `ARCHITECT_PUBLIC_URL`,
+  `ARCHITECT_GITHUB_API_URL`. Server-only; the client only sees `env.github` (configured, repositories, problems).
+- Route: `POST /api/changes/:id/ship` `{repository?}` → 201 shipped, 200 already shipped, 404/409 gate, 400 repo not
+  allowed, 503 not configured, 502 GitHub error. `/?change=<id>` opens a change (linked from the PR).
+- Production design (documented, not built): GitHub App → short-lived installation token. See `docs/architecture.md`.
+
 ## Phases
 
 - Phase 1 (done): headless vertical slice — catalog seed, agents + immutable versions, scenarios,
@@ -109,7 +127,8 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
   regression flow over SSE.
 - LLM change proposer (done): replaces the demo-only lookup; verification flow unchanged.
 - Phase 4 (done): "Change the rule" with versioned scenarios and an LLM Scenario proposer.
-- Not yet: GitHub, E2B, auth, full docs.
+- Phase 5 (done): Ship to GitHub (verified, applied change → branch, commit, pull request).
+- Not yet: E2B / generated-app execution, auth, GitHub App installation flow.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

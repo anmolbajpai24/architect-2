@@ -3,6 +3,7 @@ import type { Db } from "@/db/client";
 import {
   agents,
   agentVersions,
+  changeShipments,
   changes,
   events,
   projects,
@@ -18,6 +19,8 @@ import { Assertion, type AgentConfig, type ScenarioInput, type ScenarioResult } 
 import { proposerConfig, suggestedIntents } from "@/changes/proposer";
 import { FIXTURE_RULE_CHANGES } from "@/scenarios/fixture-proposer";
 import { loadScenarios } from "@/scenarios/runner";
+import { githubStatus, type GitHubStatus } from "@/github/config";
+import { checkShipGate } from "@/shipping/gate";
 import { busyJob, getModes } from "./context";
 
 export type VersionStatus = "live" | "proposed" | "verified" | "rejected" | "superseded";
@@ -75,6 +78,20 @@ export type WorkspaceScenario = {
   suggestedRuleChanges: string[];
 };
 
+/** GitHub provenance of a shipped (or shipping / failed) change. */
+export type WorkspaceShipment = {
+  status: "shipping" | "shipped" | "failed";
+  repository: string;
+  baseBranch: string | null;
+  branch: string;
+  commitSha: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  error: string | null;
+  shippedAt: string | null;
+  updatedAt: string;
+};
+
 export type WorkspaceChange = {
   id: string;
   intent: string;
@@ -86,6 +103,9 @@ export type WorkspaceChange = {
   structural: StructuralCheck[] | null;
   explanation: ChangeExplanation | null;
   proposal: ChangeProposal | null;
+  shipment: WorkspaceShipment | null;
+  /** The server's ship gate, for applied changes only (null otherwise). The ship route enforces the same gate. */
+  ship: { ready: boolean; reason: string | null } | null;
   createdAt: string;
 };
 
@@ -117,6 +137,7 @@ export type WorkspaceSnapshot = {
     mode: "fixture" | "live";
     judge: "skip" | "live";
     proposer: { mode: "fixture" | "live"; model: string };
+    github: GitHubStatus;
   };
   busy: string | null;
   suggestedIntents: string[];
@@ -187,6 +208,12 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
         )
         .orderBy(desc(scenarioVersions.version))
     : [];
+  const shipmentRows = await db.select().from(changeShipments).where(eq(changeShipments.projectId, projectId));
+  const gates = new Map(
+    await Promise.all(
+      changeRows.filter((c) => c.status === "applied").map(async (c) => [c.id, await checkShipGate(db, c.id)] as const),
+    ),
+  );
   const [latestEvent] = await db.select({ seq: events.seq }).from(events).orderBy(desc(events.seq)).limit(1);
 
   const changeStatus = new Map(changeRows.map((c) => [c.id, c.status]));
@@ -231,7 +258,7 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
 
   return {
     project: { id: project.id, name: project.name, slug: project.slug },
-    env: { db: dbKind, ...getModes(), proposer },
+    env: { db: dbKind, ...getModes(), proposer, github: githubStatus() },
     busy: busyJob(),
     suggestedIntents: suggestedIntents(proposer.mode),
     agents: workspaceAgents,
@@ -277,6 +304,27 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
       structural: c.structural,
       explanation: c.explanation,
       proposal: c.proposal,
+      shipment: (() => {
+        const sh = shipmentRows.find((x) => x.changeId === c.id);
+        return sh
+          ? {
+              status: sh.status,
+              repository: sh.repository,
+              baseBranch: sh.baseBranch,
+              branch: sh.branch,
+              commitSha: sh.commitSha,
+              prNumber: sh.prNumber,
+              prUrl: sh.prUrl,
+              error: sh.error,
+              shippedAt: iso(sh.shippedAt),
+              updatedAt: sh.updatedAt.toISOString(),
+            }
+          : null;
+      })(),
+      ship: (() => {
+        const gate = gates.get(c.id);
+        return gate ? { ready: gate.ok, reason: gate.ok ? null : gate.reason } : null;
+      })(),
       createdAt: c.createdAt.toISOString(),
     })),
     runs: runRows.map((r) => ({

@@ -163,6 +163,40 @@ export const runs = pgTable("runs", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 });
 
+export type ShipmentStatus = "shipping" | "shipped" | "failed";
+
+/**
+ * GitHub provenance of a shipped Change: one row per Change (the unique key is also the claim that stops two
+ * concurrent ship attempts). Progress (branch, commit) is saved as it happens so a retry resumes, not duplicates.
+ */
+export const changeShipments = pgTable(
+  "change_shipments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    changeId: uuid("change_id")
+      .notNull()
+      .references(() => changes.id, { onDelete: "cascade" }),
+    status: text("status").$type<ShipmentStatus>().notNull(),
+    /** "owner/name". */
+    repository: text("repository").notNull(),
+    baseBranch: text("base_branch"),
+    branch: text("branch").notNull(),
+    commitSha: text("commit_sha"),
+    prNumber: integer("pr_number"),
+    prUrl: text("pr_url"),
+    /** The live-agent run whose passing results the PR reports. */
+    runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
+    error: text("error"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    shippedAt: timestamp("shipped_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("change_shipments_change").on(t.changeId)],
+);
+
 /** Append-only log; later streamed to the UI over SSE. */
 export const events = pgTable("events", {
   seq: serial("seq").primaryKey(),
