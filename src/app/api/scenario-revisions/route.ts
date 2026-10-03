@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 
   let project;
   try {
-    project = await openProjectById(db, change.projectId);
+    project = await openProjectById(db, change.projectId, "change");
   } catch (err) {
     return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }

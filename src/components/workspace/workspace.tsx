@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Boxes, ExternalLink, LoaderCircle, Play, RotateCcw, X } from "lucide-react";
+import { AuthButton } from "@/components/home/auth-button";
 import { Button } from "@/components/ui/button";
+import type { SessionUser } from "@/server/auth";
 import type { WorkspaceSnapshot } from "@/server/workspace";
 import { AgentInspector } from "./agent-inspector";
 import { AgentSystem } from "./agent-system";
@@ -17,6 +19,9 @@ import { protectionSummary, scenarioStatus, streamingProgress, useWorkspace } fr
 import { VerdictDrawer } from "./verdict-drawer";
 
 type Selection = { kind: "scenario" | "agent"; key: string } | null;
+
+/** Who is looking, for the header: sign in from here, and come back to this workspace. */
+export type WorkspaceViewer = { user: SessionUser | null; configured: boolean; returnTo: string };
 
 function Column({
   title,
@@ -62,7 +67,17 @@ function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => 
   );
 }
 
-export function Workspace({ initial, initialChangeId = null, initialPrompt = null }: { initial: WorkspaceSnapshot; initialChangeId?: string | null; initialPrompt?: string | null }) {
+export function Workspace({
+  initial,
+  initialChangeId = null,
+  initialPrompt = null,
+  viewer,
+}: {
+  initial: WorkspaceSnapshot;
+  initialChangeId?: string | null;
+  initialPrompt?: string | null;
+  viewer?: WorkspaceViewer;
+}) {
   const api = useWorkspace(initial);
   const { snapshot, events, progress } = api;
   // Nothing is selected at first: the Inspector opens on the project, not on an arbitrary scenario.
@@ -129,6 +144,15 @@ export function Workspace({ initial, initialChangeId = null, initialPrompt = nul
           <Button size="sm" disabled={api.busy} onClick={() => api.runScenarios()}>
             <Play data-icon="inline-start" /> Run scenarios
           </Button>
+          {/* Only where accounts exist: a server without sign-in has nothing to offer here. */}
+          {viewer?.configured && (
+            <div className="ml-1 flex items-center gap-2 border-l pl-3">
+              {!viewer.user && (
+                <span className="hidden text-xs text-muted-foreground lg:inline">Explore freely. Sign in to change, run or ship.</span>
+              )}
+              <AuthButton user={viewer.user} configured next={viewer.returnTo} />
+            </div>
+          )}
         </div>
       </header>
 

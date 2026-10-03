@@ -26,7 +26,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
 
   let project;
   try {
-    project = await openProjectById(db, failed.projectId);
+    project = await openProjectById(db, failed.projectId, "change");
   } catch (err) {
     return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }

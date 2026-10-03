@@ -16,7 +16,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ revisionId: s
 
   let project;
   try {
-    project = await openProjectById(db, await revisionProjectId(db, revisionId));
+    project = await openProjectById(db, await revisionProjectId(db, revisionId), "change");
   } catch (err) {
     if (err instanceof RevisionError) return errorResponse(err.message, 404);
     return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);

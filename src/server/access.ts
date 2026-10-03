@@ -23,14 +23,32 @@ export const projectIsExample = (row: Pick<ProjectRow, "slug">) => hasDefinition
 /** The viewer may not open this project. */
 export class ProjectForbidden extends Error {}
 
+/** The viewer may look at this example but must sign in to change it. Answered with 401, not 403. */
+export class SignInRequired extends ProjectForbidden {}
+
 /**
- * Throws unless the viewer may open this project.
+ * What a request does with the project. `view` reads it. `change` mutates it or spends model or GitHub calls.
+ * Only examples tell the two apart: anyone may explore one, but changing it needs a signed-in viewer. A generated
+ * project is owner-only either way.
+ */
+export type ProjectAccess = "view" | "change";
+
+/**
+ * Throws unless the viewer may open this project for `access`.
  *
  * With sign-in switched off this allows everything, so a server without accounts behaves exactly as it did
  * before — including the offline demo and a local PGlite run.
  */
-export async function assertProjectAccess(row: ProjectRow, viewer?: SessionUser | null): Promise<void> {
-  if (projectIsExample(row)) return;
+export async function assertProjectAccess(
+  row: ProjectRow,
+  viewer?: SessionUser | null,
+  access: ProjectAccess = "view",
+): Promise<void> {
+  if (projectIsExample(row)) {
+    if (access === "view" || !authEnabled()) return;
+    if (viewer === undefined ? await currentUser() : viewer) return;
+    throw new SignInRequired("Anyone can explore the demo. Sign in with Google to change or ship it.");
+  }
   if (!authEnabled()) return;
   const user = viewer === undefined ? await currentUser() : viewer;
   if (user && row.ownerId === user.id) return;
@@ -42,16 +60,16 @@ export async function assertProjectAccess(row: ProjectRow, viewer?: SessionUser 
 }
 
 /** Resolve a project and authorize the viewer. Every request-facing caller uses this, not `resolveProject`. */
-export async function openProject(db: Db, selector?: string | null): Promise<ResolvedProject> {
+export async function openProject(db: Db, selector?: string | null, access: ProjectAccess = "view"): Promise<ResolvedProject> {
   const project = await resolveProject(db, selector);
-  await assertProjectAccess(project.row);
+  await assertProjectAccess(project.row, undefined, access);
   return project;
 }
 
 /** The same, for a project reached through a change or revision the request named. */
-export async function openProjectById(db: Db, id: string): Promise<ResolvedProject> {
+export async function openProjectById(db: Db, id: string, access: ProjectAccess = "view"): Promise<ResolvedProject> {
   const project = await projectById(db, id);
-  await assertProjectAccess(project.row);
+  await assertProjectAccess(project.row, undefined, access);
   return project;
 }
 

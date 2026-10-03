@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Workspace } from "@/components/workspace/workspace";
 import { openProject } from "@/server/access";
+import { authStatus, currentUser } from "@/server/auth";
 import { getDb } from "@/server/context";
 import { getWorkspace } from "@/server/workspace";
 
@@ -40,5 +41,7 @@ export default async function WorkspacePage({ searchParams }: Params) {
   const prompt = params.prompt;
   const initialChangeId = typeof change === "string" && snapshot.changes.some((c) => c.id === change) ? change : null;
   const initialPrompt = typeof prompt === "string" ? prompt.trim().slice(0, 2000) : null;
-  return <Workspace initial={snapshot} initialChangeId={initialChangeId} initialPrompt={initialPrompt || null} />;
+  // Who is looking, for the header only. Kept out of the snapshot: the scripts build snapshots without a request.
+  const viewer = { user: await currentUser(), configured: authStatus().configured, returnTo: `/workspace?project=${project.id}` };
+  return <Workspace initial={snapshot} initialChangeId={initialChangeId} initialPrompt={initialPrompt || null} viewer={viewer} />;
 }

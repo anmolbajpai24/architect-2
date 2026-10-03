@@ -1,8 +1,11 @@
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { changes } from "@/db/schema";
 import { githubProviderFromEnv, githubStatus, publicUrl } from "@/github/config";
 import { shipChange, ShipError } from "@/shipping/ship";
+import { openProjectById, ProjectForbidden } from "@/server/access";
 import { claimBusy, getDb } from "@/server/context";
-import { busyResponse, errorResponse } from "@/server/responses";
+import { busyResponse, errorResponse, forbiddenResponse, notFoundResponse } from "@/server/responses";
 
 const Body = z.object({ repository: z.string().trim().min(1).optional() });
 
@@ -20,10 +23,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ changeId: stri
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return errorResponse("Invalid ship request.", 400);
 
+  // Authorize against the change's project before anything else: the busy lock, the shipment claim, GitHub.
+  const { db } = await getDb();
+  const [change] = await db.select({ projectId: changes.projectId }).from(changes).where(eq(changes.id, changeId));
+  if (!change) return errorResponse("Change not found.", 404);
+  try {
+    await openProjectById(db, change.projectId, "change");
+  } catch (err) {
+    return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
+  }
+
   const release = claimBusy("Shipping to GitHub");
   if (!release) return busyResponse();
   try {
-    const { db } = await getDb();
     const { shipment, alreadyShipped } = await shipChange(db, {
       changeId,
       repository: parsed.data.repository,

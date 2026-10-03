@@ -7,8 +7,9 @@ import type { SessionUser } from "@/server/auth";
 /**
  * Sign in with Google, or sign out. Both navigate, so both say so the moment they are clicked: a button that
  * looks idle while a round trip to Google is in flight reads as a button that didn't work.
+ * `next`: where sign-in returns to (a same-app path); the home page when absent.
  */
-export function AuthButton({ user, configured }: { user: SessionUser | null; configured: boolean }) {
+export function AuthButton({ user, configured, next }: { user: SessionUser | null; configured: boolean; next?: string }) {
   const [pending, setPending] = useState<"in" | "out" | null>(null);
 
   if (!configured) {
@@ -18,7 +19,7 @@ export function AuthButton({ user, configured }: { user: SessionUser | null; con
   if (!user) {
     return (
       <a
-        href="/auth/signin"
+        href={next ? `/auth/signin?next=${encodeURIComponent(next)}` : "/auth/signin"}
         onClick={() => setPending("in")}
         aria-disabled={pending === "in"}
         className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted/50 aria-disabled:pointer-events-none aria-disabled:opacity-60"

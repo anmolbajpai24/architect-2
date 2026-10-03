@@ -13,6 +13,9 @@
     "scenarios:run": "tsx scripts/scenarios-run.ts",
     "scenarios:regress": "tsx scripts/scenarios-regress.ts",
     "ship:check": "tsx scripts/ship-check.ts",
+    "ship:auth-check": "tsx --experimental-test-module-mocks scripts/ship-auth-check.ts",
+    "revisions:auth-check": "tsx --experimental-test-module-mocks scripts/revisions-auth-check.ts",
+    "example:auth-check": "tsx --experimental-test-module-mocks scripts/example-auth-check.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "typecheck": "tsc --noEmit --incremental false"
