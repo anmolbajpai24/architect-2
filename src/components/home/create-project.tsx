@@ -131,13 +131,16 @@ function Review({
   );
 }
 
-export function CreateProject({ examples }: { examples: string[] }) {
+export function CreateProject({ briefs, signedIn }: { briefs: string[]; signedIn: boolean }) {
   const router = useRouter();
   const [brief, setBrief] = useState("");
   const [stage, setStage] = useState<Stage>({ kind: "idle" });
   const [error, setError] = useState<string | null>(null);
+  // The workspace is rendered on the server, so the wait after a successful create is real and gets its own label.
+  const [opening, setOpening] = useState(false);
 
-  const busy = stage.kind === "planning" || stage.kind === "building";
+  const planning = stage.kind === "planning";
+  const busy = planning || stage.kind === "building" || opening;
 
   const post = async (url: string, body: unknown) => {
     const res = await fetch(url, {
@@ -169,6 +172,7 @@ export function CreateProject({ examples }: { examples: string[] }) {
         brief: current.brief,
         blueprint: current.blueprint,
       })) as { projectId: string };
+      setOpening(true);
       router.push(`/workspace?project=${created.projectId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -177,13 +181,13 @@ export function CreateProject({ examples }: { examples: string[] }) {
   };
 
   return (
-    <div className="mt-10 max-w-2xl space-y-4">
-      {stage.kind === "idle" && (
+    <div className="space-y-4">
+      {(stage.kind === "idle" || planning) && (
         <>
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (brief.trim().length >= 10) plan(brief.trim());
+              if (!busy && signedIn && brief.trim().length >= 10) plan(brief.trim());
             }}
             className="rounded-2xl border bg-background p-4 shadow-sm"
           >
@@ -194,31 +198,37 @@ export function CreateProject({ examples }: { examples: string[] }) {
               id="project-brief"
               name="brief"
               required
-              rows={4}
+              rows={3}
               value={brief}
+              disabled={busy}
               onChange={(e) => setBrief(e.target.value)}
               placeholder="What should your agent system do?"
               className="mt-3 w-full resize-none rounded-lg border bg-muted/30 p-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
             />
             <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">Architect plans the system, then you decide to build it.</span>
+              <span className="text-xs text-muted-foreground">
+                {signedIn ? "Architect plans the system, then you decide to build it." : "Sign in with Google to create a project."}
+              </span>
               <button
                 type="submit"
-                disabled={brief.trim().length < 10}
-                className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-40"
+                disabled={busy || !signedIn || brief.trim().length < 10}
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-40"
               >
-                Start building <ArrowRight className="size-4" />
+                {planning ? <LoaderCircle className="size-4 animate-spin" /> : null}
+                {planning ? "Planning…" : "Start building"}
+                {planning ? null : <ArrowRight className="size-4" />}
               </button>
             </div>
           </form>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            {examples.map((example) => (
+            {briefs.map((example) => (
               <button
                 key={example}
                 type="button"
+                disabled={busy}
                 onClick={() => setBrief(example)}
-                className="rounded-xl border bg-background p-3 text-left text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+                className="rounded-xl border bg-background p-3 text-left text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
               >
                 <span className="mb-2 block text-foreground">Try a brief</span>
                 {example}
@@ -228,12 +238,12 @@ export function CreateProject({ examples }: { examples: string[] }) {
         </>
       )}
 
-      {stage.kind === "planning" && <Working label="Understanding your brief…" />}
+      {planning && <Working label="Understanding your brief…" />}
       {stage.kind === "review" && <Review plan={stage.plan} busy={false} onBuild={() => build(stage.plan)} onBack={() => setStage({ kind: "idle" })} />}
       {stage.kind === "building" && (
         <>
           <Review plan={stage.plan} busy onBuild={() => {}} onBack={() => {}} />
-          <Working label="Creating the agents and scenarios…" />
+          <Working label={opening ? "Opening your workspace…" : "Creating the agents and scenarios…"} />
         </>
       )}
 

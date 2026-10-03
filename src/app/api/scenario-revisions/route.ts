@@ -6,8 +6,9 @@ import { changes } from "@/db/schema";
 import { emit } from "@/events";
 import { draftScenarioRevision, type ScenarioDraft } from "@/scenarios/proposer";
 import { canChangeRule, proposeScenarioRevision } from "@/scenarios/revisions";
-import { claimBusy, getDb, projectById } from "@/server/context";
-import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
+import { openProjectById, ProjectForbidden } from "@/server/access";
+import { claimBusy, getDb } from "@/server/context";
+import { busyResponse, errorResponse, forbiddenResponse, notFoundResponse } from "@/server/responses";
 
 const Body = z.object({
   changeId: z.string().uuid(),
@@ -34,9 +35,9 @@ export async function POST(req: Request) {
 
   let project;
   try {
-    project = await projectById(db, change.projectId);
+    project = await openProjectById(db, change.projectId);
   } catch (err) {
-    return notFoundResponse(err);
+    return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }
 
   const release = claimBusy("Drafting rule change");

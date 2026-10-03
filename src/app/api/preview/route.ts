@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { runPreview } from "@/preview/session";
 import { agentRuntimeProblem } from "@/server/config";
-import { getDb, getModes, projectSelector, resolveProject } from "@/server/context";
-import { errorResponse, notFoundResponse } from "@/server/responses";
+import { openProject, ProjectForbidden } from "@/server/access";
+import { getDb, getModes, projectSelector } from "@/server/context";
+import { errorResponse, forbiddenResponse, notFoundResponse } from "@/server/responses";
 
 const Body = z.object({ message: z.string().trim().min(1).max(4000) });
 
@@ -23,9 +24,9 @@ export async function POST(req: Request) {
   const { db } = await getDb();
   let project;
   try {
-    project = await resolveProject(db, projectSelector(req));
+    project = await openProject(db, projectSelector(req));
   } catch (err) {
-    return notFoundResponse(err);
+    return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }
 
   const problem = agentRuntimeProblem(project.runtime);

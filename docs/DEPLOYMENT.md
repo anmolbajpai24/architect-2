@@ -152,6 +152,38 @@ costs little more at 300s than at 60s. One caveat the platform documents: a requ
 minutes can still be dropped by an HTTP/1.1 client or an intermediary. Planning holds the connection open without
 streaming, so a very slow provider could lose the connection before the limit does.
 
+## 6a. Sign in with Google (optional)
+
+Unset, the app runs exactly as it always has: no accounts, no viewer, every project reachable, deterministic demo
+unaffected. Set, projects belong to the Google account that created them.
+
+Sign-in uses **Supabase Auth on the same Supabase project as `DATABASE_URL`** — no second provider, and no user
+table of Architect's own. A project row stores the Supabase user id in `projects.owner_id`; that is the entire
+identity model.
+
+1. **Google Cloud console** → APIs & Services → Credentials → *OAuth client ID* (Web application).
+   Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback` (Supabase's, not yours).
+2. **Supabase** → Authentication → Providers → Google: paste the client ID and secret, enable.
+3. **Supabase** → Authentication → URL Configuration:
+   - Site URL: your deployed origin.
+   - Redirect URLs: `https://<your-domain>/auth/callback` and `http://localhost:3000/auth/callback`.
+4. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` (Project settings → API), and `ARCHITECT_PUBLIC_URL` to your
+   deployed origin — the OAuth redirect is built from it, so a proxy header can't rewrite where Google returns to.
+
+Routes: `/auth/signin` starts the flow, `/auth/callback` exchanges the one-time code for a session, `/auth/signout`
+ends it. `src/middleware.ts` refreshes the access token on every request, because a Server Component can read
+cookies but not write them. Nothing is `NEXT_PUBLIC_`: the Supabase client only ever runs on the server.
+
+**Who can open what.** A project whose slug names a definition in code (Laptop Advisor) is a public reference
+example. Anything else belongs to the user who created it, and `src/server/access.ts` enforces that on every
+route and page — the home page listing is a convenience, not the control. A generated project with no owner
+predates sign-in: once sign-in is configured it is listed nowhere and opens for no one. To adopt one, set its
+owner directly:
+
+```sql
+update projects set owner_id = '<supabase-user-id>' where slug = '<slug>';
+```
+
 ## 7. GitHub shipping (optional)
 
 Everything except the "Ship to GitHub" button works without this.

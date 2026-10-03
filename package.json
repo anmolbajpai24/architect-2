@@ -21,6 +21,8 @@
     "@ai-sdk/anthropic": "^4.0.71",
     "@ai-sdk/openai": "^4.0.83",
     "@electric-sql/pglite": "^0.5.8",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
     "ai": "^7.0.127",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",

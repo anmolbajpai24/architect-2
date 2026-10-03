@@ -34,7 +34,7 @@ async function freeSlug(db: Db, wanted: string): Promise<string> {
 
 export async function materializeProject(
   db: Db,
-  input: { blueprint: NormalizedBlueprint; brief: string; model: string; notes?: string[] },
+  input: { blueprint: NormalizedBlueprint; brief: string; model: string; notes?: string[]; ownerId: string | null },
 ): Promise<MaterializedProject> {
   const { blueprint } = input;
   const agentSpecs = blueprintAgents(blueprint, input.model);
@@ -64,6 +64,7 @@ export async function materializeProject(
         brief: input.brief,
         judgeContext: blueprint.summary,
         responsePath: blueprint.responseField,
+        ownerId: input.ownerId,
       })
       .returning();
 

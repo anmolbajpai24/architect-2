@@ -1,6 +1,7 @@
-import { bootstrapProject, busyJob, getDb, projectSelector, resolveProject } from "@/server/context";
+import { openProject, ProjectForbidden } from "@/server/access";
+import { bootstrapProject, busyJob, getDb, projectSelector } from "@/server/context";
 import { hasDefinition } from "@/projects/registry";
-import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
+import { busyResponse, errorResponse, forbiddenResponse, notFoundResponse } from "@/server/responses";
 
 /**
  * Restores a project to its seeded state: v1 agents, no changes or runs.
@@ -13,9 +14,9 @@ export async function POST(req: Request) {
   const { db } = await getDb();
   let project;
   try {
-    project = await resolveProject(db, projectSelector(req));
+    project = await openProject(db, projectSelector(req));
   } catch (err) {
-    return notFoundResponse(err);
+    return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }
   if (!hasDefinition(project.slug)) {
     return errorResponse("This project was created from a brief, so there is no seeded state to reset it to.", 409);

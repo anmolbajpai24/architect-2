@@ -4,8 +4,9 @@ import { draftFix, ProposalError, proposerConfig, type Draft } from "@/changes/p
 import { changes } from "@/db/schema";
 import { emit } from "@/events";
 import { agentRuntimeProblem } from "@/server/config";
-import { claimBusy, getDb, getRunOptions, projectById, startJob } from "@/server/context";
-import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
+import { openProjectById, ProjectForbidden } from "@/server/access";
+import { claimBusy, getDb, getRunOptions, startJob } from "@/server/context";
+import { busyResponse, errorResponse, forbiddenResponse, notFoundResponse } from "@/server/responses";
 
 export const maxDuration = 300;
 
@@ -25,9 +26,9 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
 
   let project;
   try {
-    project = await projectById(db, failed.projectId);
+    project = await openProjectById(db, failed.projectId);
   } catch (err) {
-    return notFoundResponse(err);
+    return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }
   const problem = agentRuntimeProblem(project.runtime);
   if (problem) return errorResponse(problem, 503);

@@ -4,8 +4,9 @@ import { draftChange, ProposalError, proposerConfig, type Draft } from "@/change
 import { emit } from "@/events";
 import { loadCurrentVersions } from "@/scenarios/runner";
 import { agentRuntimeProblem } from "@/server/config";
-import { claimBusy, getDb, getRunOptions, projectSelector, resolveProject, startJob } from "@/server/context";
-import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
+import { openProject, ProjectForbidden } from "@/server/access";
+import { claimBusy, getDb, getRunOptions, projectSelector, startJob } from "@/server/context";
+import { busyResponse, errorResponse, forbiddenResponse, notFoundResponse } from "@/server/responses";
 
 const Body = z.object({ intent: z.string().trim().min(1).max(2000) });
 
@@ -24,9 +25,9 @@ export async function POST(req: Request) {
   const { db } = await getDb();
   let project;
   try {
-    project = await resolveProject(db, projectSelector(req));
+    project = await openProject(db, projectSelector(req));
   } catch (err) {
-    return notFoundResponse(err);
+    return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }
 
   const problem = agentRuntimeProblem(project.runtime);

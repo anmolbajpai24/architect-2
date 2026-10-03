@@ -31,6 +31,11 @@ export const projects = pgTable("projects", {
   judgeContext: text("judge_context"),
   /** Where the entry agent's user-facing response lives in its output (ProjectDefinition.responsePath). */
   responsePath: text("response_path"),
+  /**
+   * The Supabase Auth user who created this project. Null means nobody owns it: a project backed by a definition
+   * in code is a public example, and anything else unowned predates sign-in and belongs to no one.
+   */
+  ownerId: text("owner_id"),
   createdAt: createdAt(),
 });
 

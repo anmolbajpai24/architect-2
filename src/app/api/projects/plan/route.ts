@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { planProject, PlanError } from "@/projects/planner";
+import { authEnabled, currentUser } from "@/server/auth";
 import { errorResponse } from "@/server/responses";
 
 const Body = z.object({ brief: z.string().trim().min(10).max(4000) });
@@ -18,6 +19,9 @@ export const maxDuration = 300;
  * review step honest, because what comes back here is exactly what POST /api/projects will materialize.
  */
 export async function POST(req: Request) {
+  // Planning spends a model call, so it needs the same viewer that creating the project will require.
+  if (authEnabled() && !(await currentUser())) return errorResponse("Sign in with Google to plan a project.", 401);
+
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return errorResponse("Describe what you want to build, in a sentence or two.", 400);
   try {

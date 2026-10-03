@@ -1,7 +1,8 @@
 import { loadCurrentVersions, runScenarios } from "@/scenarios/runner";
 import { agentRuntimeProblem } from "@/server/config";
-import { getDb, getRunOptions, projectSelector, resolveProject, startJob } from "@/server/context";
-import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
+import { openProject, ProjectForbidden } from "@/server/access";
+import { getDb, getRunOptions, projectSelector, startJob } from "@/server/context";
+import { busyResponse, errorResponse, forbiddenResponse, notFoundResponse } from "@/server/responses";
 
 /** A run on live models calls a provider once per agent per scenario; see docs/DEPLOYMENT.md on this ceiling. */
 export const maxDuration = 300;
@@ -11,9 +12,9 @@ export async function POST(req: Request) {
   const { db } = await getDb();
   let project;
   try {
-    project = await resolveProject(db, projectSelector(req));
+    project = await openProject(db, projectSelector(req));
   } catch (err) {
-    return notFoundResponse(err);
+    return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }
   const problem = agentRuntimeProblem(project.runtime);
   if (problem) return errorResponse(problem, 503);

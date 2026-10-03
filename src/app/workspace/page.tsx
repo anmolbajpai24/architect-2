@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Workspace } from "@/components/workspace/workspace";
-import { getDb, resolveProject } from "@/server/context";
+import { openProject } from "@/server/access";
+import { getDb } from "@/server/context";
 import { getWorkspace } from "@/server/workspace";
 
 type Params = { searchParams: Promise<{ [key: string]: string | string[] | undefined }> };
@@ -14,7 +15,7 @@ const selectorFrom = (params: Record<string, string | string[] | undefined>) =>
 export async function generateMetadata({ searchParams }: Params): Promise<Metadata> {
   try {
     const { db } = await getDb();
-    const project = await resolveProject(db, selectorFrom(await searchParams));
+    const project = await openProject(db, selectorFrom(await searchParams));
     return { title: `Architect · ${project.name}` };
   } catch {
     return { title: "Architect" };
@@ -30,7 +31,8 @@ export default async function WorkspacePage({ searchParams }: Params) {
   const params = await searchParams;
   const { db, kind } = await getDb();
 
-  const project = await resolveProject(db, selectorFrom(params)).catch(() => null);
+  // notFound() for both "no such project" and "not yours": the page is a door, the API is the lock.
+  const project = await openProject(db, selectorFrom(params)).catch(() => null);
   if (!project) notFound();
 
   const snapshot = await getWorkspace(db, project, kind);

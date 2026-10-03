@@ -5,14 +5,15 @@ import { PreviewChat, type PreviewTool } from "@/components/preview/preview-chat
 import { hasDefinition } from "@/projects/registry";
 import { loadPreviewAgents } from "@/preview/session";
 import { agentRuntimeProblem } from "@/server/config";
-import { getDb, getModes, resolveProject } from "@/server/context";
+import { openProject } from "@/server/access";
+import { getDb, getModes } from "@/server/context";
 
 type Params = { params: Promise<{ projectId: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   try {
     const { db } = await getDb();
-    const project = await resolveProject(db, (await params).projectId);
+    const project = await openProject(db, (await params).projectId);
     return { title: `${project.name} · Preview` };
   } catch {
     return { title: "Preview" };
@@ -31,7 +32,7 @@ export default async function PreviewPage({ params }: Params) {
   const { projectId } = await params;
   const { db } = await getDb();
 
-  const project = await resolveProject(db, projectId).catch(() => null);
+  const project = await openProject(db, projectId).catch(() => null);
   if (!project) notFound();
 
   const agents = await loadPreviewAgents(db, project.id);

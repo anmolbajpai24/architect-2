@@ -22,6 +22,11 @@ const EnvSchema = z.object({
   OPENAI_API_KEY: optionalString,
   /** Which project definition this server serves (src/projects/registry.ts). Unset: the Laptop Advisor demo. */
   ARCHITECT_PROJECT: optionalString,
+  /** Supabase Auth (Google sign-in). Both unset: the app runs without accounts, as it did before. */
+  SUPABASE_URL: optionalString,
+  SUPABASE_ANON_KEY: optionalString,
+  /** Where this deployment is reachable; also the OAuth redirect base. */
+  ARCHITECT_PUBLIC_URL: optionalString,
   ARCHITECT_MODEL_MODE: optionalMode(["fixture", "live"]),
   ARCHITECT_JUDGE: optionalMode(["skip", "live"]),
   ARCHITECT_PROPOSER: optionalMode(["fixture", "live"]),

@@ -1,7 +1,8 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 import { events } from "@/db/schema";
+import { openProject, ProjectForbidden } from "@/server/access";
 import { getDb, projectSelector, resolveProject } from "@/server/context";
-import { notFoundResponse } from "@/server/responses";
+import { forbiddenResponse, notFoundResponse } from "@/server/responses";
 import { toWorkspaceEvent } from "@/server/workspace";
 
 export const maxDuration = 60;
@@ -23,12 +24,12 @@ const pollMs = (kind: string) => (kind === "postgres" ? 500 : 250);
 export async function GET(req: Request) {
   const { db, kind } = await getDb();
   const url = new URL(req.url);
-  // Resolved once to fail fast on an unknown project, then re-resolved by slug while streaming.
+  // Authorized once, then followed by slug while streaming: the viewer can't change mid-stream.
   let project;
   try {
-    project = await resolveProject(db, projectSelector(req));
+    project = await openProject(db, projectSelector(req));
   } catch (err) {
-    return notFoundResponse(err);
+    return err instanceof ProjectForbidden ? forbiddenResponse(err) : notFoundResponse(err);
   }
   let last = Number(req.headers.get("last-event-id") ?? url.searchParams.get("after") ?? 0) || 0;
   const encoder = new TextEncoder();
