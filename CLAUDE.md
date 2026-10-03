@@ -41,6 +41,24 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - Do not silently change the architecture.
 - Do not expand scope. Finish the current phase, report, and stop. Do not continue into the next phase automatically.
 
+## Decisions (approved by owner, Phase 1)
+
+- DB: Drizzle on Postgres. `DATABASE_URL` set → Supabase via `postgres` (postgres.js); unset → in-process
+  PGlite (`@electric-sql/pglite`), fresh per run. Migrations in `drizzle/` (`pnpm db:generate`), applied on open.
+- Determinism: agents run on a deterministic fixture model (`src/runtime/fixture-model.ts`, AI SDK
+  `MockLanguageModelV4`) by default. `--live` uses the provider model in each AgentVersion config.
+  Judge assertions run only with `--judge`/`--live` and an API key; otherwise they report `skipped`.
+  tool/output assertions decide pass/fail.
+- Scripts run TypeScript through `tsx` (Node 22.5 can't strip types).
+- AI SDK is v7: `instructions` (not `system`), `isStepCount`, `Output.object`.
+- Failed Changes are gated: an agent's `currentVersionId` only moves when a verified Change is applied.
+
+## Commands
+
+- `pnpm scenarios:run [--reset] [--judge] [--live]`: run all scenarios against the current agent versions.
+- `pnpm scenarios:regress [--judge] [--live]`: the key demo end to end; exits non-zero if any step deviates.
+- `pnpm typecheck`, `pnpm db:generate`.
+
 ## Phases
 
 - Phase 1 (current): headless vertical slice — catalog seed, agents + immutable versions, scenarios,

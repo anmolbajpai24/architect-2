@@ -6,6 +6,7 @@
   "scripts": {
     "scenarios:run": "tsx scripts/scenarios-run.ts",
     "scenarios:regress": "tsx scripts/scenarios-regress.ts",
+    "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,9 +19,10 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^26.6.4",
+    "@types/node": "^22.20.5",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
-  }
+  },
+  "packageManager": "pnpm@12.8.1"
 }
