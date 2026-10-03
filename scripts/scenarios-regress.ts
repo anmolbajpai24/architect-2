@@ -5,11 +5,11 @@
  * explanation → "Keep the rule → Fix it" → fix passes and is applied → scenarios pass.
  */
 import { and, count, eq } from "drizzle-orm";
-import { applyChange, keepRuleAndFix, proposeChange, verifyChange } from "@/changes/change";
+import { applyChange, keepRuleAndFix, loadFixContext, proposeChange, verifyChange } from "@/changes/change";
+import { draftChange, draftFix, proposerConfig, type ProposerConfig } from "@/changes/proposer";
 import { openDb, type Db } from "@/db/client";
 import { agents, agentVersions, events } from "@/db/schema";
-import { fixEdits } from "@/fixtures/fix";
-import { REGRESSION_INTENT, regressionEdits } from "@/fixtures/regression";
+import { REGRESSION_INTENT } from "@/fixtures/regression";
 import { loadCurrentVersions, runScenarios } from "@/scenarios/runner";
 import { seedDemo } from "@/seed";
 import { c, heading, parseFlags, printExplanation, printRun, printStructural } from "./report";
@@ -34,6 +34,8 @@ const { db, kind, close } = await openDb();
 try {
   const projectId = await seedDemo(db, { reset: true });
   const verifyOpts = { mode: flags.mode, judge: flags.judge };
+  // The proposer follows --live too: fixture replays the recorded demo edits through the same code path.
+  const proposer: ProposerConfig = { mode: flags.mode, model: proposerConfig().model };
 
   heading(`1. Initial agent · db: ${kind}`);
   const baseline = await runScenarios(db, {
@@ -46,7 +48,9 @@ try {
   expect(baseline.status === "passed", "all scenarios pass on Recommendation Agent v1");
 
   heading(`2. User asks: "${REGRESSION_INTENT}"`);
-  const change = await proposeChange(db, { projectId, intent: REGRESSION_INTENT, edits: regressionEdits });
+  const draft = await draftChange({ intent: REGRESSION_INTENT, versions: await loadCurrentVersions(db, projectId), config: proposer });
+  console.log(c.dim(`Architect (${draft.proposal.model}): ${draft.proposal.rationale}`));
+  const change = await proposeChange(db, { projectId, intent: REGRESSION_INTENT, edits: draft.edits, proposal: draft.proposal });
   console.log(`Change ${change.id.slice(0, 8)} proposes a new Recommendation Agent version (not live yet).`);
   const verified = await verifyChange(db, change.id, verifyOpts);
   printStructural(verified.structural);
@@ -64,8 +68,19 @@ try {
   );
 
   heading('3. User chooses "Keep the rule → Fix it"');
-  const fix = await keepRuleAndFix(db, change.id, fixEdits);
-  console.log(`Change ${fix.id.slice(0, 8)} revises ${change.id.slice(0, 8)}: confident tone, honesty rule restored.`);
+  const ctx = await loadFixContext(db, change.id);
+  const fixDraft = await draftFix({
+    intent: change.intent,
+    live: ctx.live,
+    blocked: ctx.blocked,
+    editedAgents: Object.keys(change.proposedVersionIds),
+    scenarios: ctx.scenarios,
+    results: ctx.results,
+    config: proposer,
+  });
+  const fix = await keepRuleAndFix(db, change.id, fixDraft.edits, fixDraft.proposal);
+  console.log(`Change ${fix.id.slice(0, 8)} revises ${change.id.slice(0, 8)}.`);
+  console.log(c.dim(`Architect (${fixDraft.proposal.model}): ${fixDraft.proposal.rationale}`));
   const fixVerified = await verifyChange(db, fix.id, verifyOpts);
   printStructural(fixVerified.structural);
   if (fixVerified.run) {

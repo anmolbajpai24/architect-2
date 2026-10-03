@@ -8,11 +8,12 @@ import {
   projects,
   runs,
   type ChangeExplanation,
+  type ChangeProposal,
   type ChangeStatus,
   type StructuralCheck,
 } from "@/db/schema";
 import type { AgentConfig, Assertion, ScenarioInput, ScenarioResult } from "@/domain/schemas";
-import { SUGGESTED_INTENTS } from "@/changes/proposer";
+import { proposerConfig, suggestedIntents } from "@/changes/proposer";
 import { loadScenarios } from "@/scenarios/runner";
 import { busyJob, getModes } from "./context";
 
@@ -56,6 +57,7 @@ export type WorkspaceChange = {
   proposedVersionIds: Record<string, string>;
   structural: StructuralCheck[] | null;
   explanation: ChangeExplanation | null;
+  proposal: ChangeProposal | null;
   createdAt: string;
 };
 
@@ -82,7 +84,12 @@ export type WorkspaceEvent = {
 
 export type WorkspaceSnapshot = {
   project: { id: string; name: string; slug: string };
-  env: { db: "postgres" | "pglite"; mode: "fixture" | "live"; judge: "skip" | "live" };
+  env: {
+    db: "postgres" | "pglite";
+    mode: "fixture" | "live";
+    judge: "skip" | "live";
+    proposer: { mode: "fixture" | "live"; model: string };
+  };
   busy: string | null;
   suggestedIntents: string[];
   agents: WorkspaceAgent[];
@@ -143,6 +150,7 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
   const [latestEvent] = await db.select({ seq: events.seq }).from(events).orderBy(desc(events.seq)).limit(1);
 
   const changeStatus = new Map(changeRows.map((c) => [c.id, c.status]));
+  const proposer = proposerConfig();
   const handoffTargets = new Set<string>();
 
   const workspaceAgents: WorkspaceAgent[] = agentRows.map((a) => {
@@ -183,9 +191,9 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
 
   return {
     project: { id: project.id, name: project.name, slug: project.slug },
-    env: { db: dbKind, ...getModes() },
+    env: { db: dbKind, ...getModes(), proposer },
     busy: busyJob(),
-    suggestedIntents: SUGGESTED_INTENTS,
+    suggestedIntents: suggestedIntents(proposer.mode),
     agents: workspaceAgents,
     scenarios: scenarioRows.map((s) => ({
       id: s.id,
@@ -205,6 +213,7 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
       proposedVersionIds: c.proposedVersionIds,
       structural: c.structural,
       explanation: c.explanation,
+      proposal: c.proposal,
       createdAt: c.createdAt.toISOString(),
     })),
     runs: runRows.map((r) => ({

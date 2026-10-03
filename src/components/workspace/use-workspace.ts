@@ -103,8 +103,8 @@ export function useWorkspace(initial: WorkspaceSnapshot) {
     error,
     dismissError: () => setError(null),
     runScenarios: () => post("Starting run", "/api/runs"),
-    proposeChange: (intent: string) => post<{ changeId: string }>("Proposing change", "/api/changes", { intent }),
-    keepRuleAndFix: (changeId: string) => post<{ changeId: string }>("Fixing change", `/api/changes/${changeId}/fix`),
+    proposeChange: (intent: string) => post<{ changeId: string }>("Drafting change", "/api/changes", { intent }),
+    keepRuleAndFix: (changeId: string) => post<{ changeId: string }>("Drafting fix", `/api/changes/${changeId}/fix`),
     applyChange: (changeId: string) => post("Applying change", `/api/changes/${changeId}/apply`),
     reset: () => post("Resetting demo", "/api/reset"),
   };

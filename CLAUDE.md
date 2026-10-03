@@ -69,8 +69,15 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
   `POST reset`.
 - Client (`src/components/workspace/*`): `useWorkspace` = snapshot + EventSource; events drive live progress and
   a debounced snapshot refetch.
-- `src/changes/proposer.ts` maps the scripted demo request to fixture edits; free-form requests are rejected
-  until the LLM proposer exists.
+- Change proposer (`src/changes/proposer.ts`): `draftChange` / `draftFix` call an LLM via `generateText` +
+  `Output.object` (Zod schema limited to real agent keys, registered tools, existing handoff targets; nullable =
+  keep). Editable fields: `instructions`, `role`, `tools`, `handoffs`. Drafts never skip verification.
+  The draft prompt sees live configs + request only (not scenarios); the fix prompt also sees protected behaviors
+  and the blocked change's failures. Rationale/mode/model are stored in `changes.proposal`.
+  `ARCHITECT_PROPOSER=live|fixture` (unset → live if the key exists), `ARCHITECT_PROPOSER_MODEL`
+  (default `anthropic:claude-opus-5-5`). Fixture mode (`fixture-proposer.ts`) replays the demo edits through
+  the same structured-output path. Routes draft synchronously under the busy lock and emit
+  `change.drafting` / `change.draft_failed`.
 - UI env: `ARCHITECT_MODEL_MODE=live`, `ARCHITECT_JUDGE=live`. PGlite state is per server process.
 - Pure helpers for client code live in `src/domain/format.ts`; never import AI SDK or DB modules into components.
 
@@ -81,7 +88,8 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
   `pnpm scenarios:run` and `pnpm scenarios:regress`.
 - Phase 2 (done): workspace UI — Scenario strip, Scenario inspector, Agent inspector, Change/Verdict drawer,
   regression flow over SSE.
-- Not yet: LLM change proposer, "Change the rule", GitHub, E2B, auth, full docs.
+- LLM change proposer (done): replaces the demo-only lookup; verification flow unchanged.
+- Not yet: "Change the rule", GitHub, E2B, auth, full docs.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, CheckCheck, CornerDownRight, Hammer, LoaderCircle, Rocket, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Ban, CheckCheck, CornerDownRight, Hammer, LoaderCircle, Rocket, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,7 +8,7 @@ import type { WorkspaceChange, WorkspaceSnapshot } from "@/server/workspace";
 import { cn } from "@/lib/utils";
 import { AssertionRow } from "./assertion-row";
 import { agentName, versionNumber } from "./changes-panel";
-import { shortId } from "./format";
+import { modelLabel, shortId } from "./format";
 import { InstructionDiff } from "./instruction-diff";
 import { Reply } from "./scenario-inspector";
 import { ChangeStatusPill, StatusIcon } from "./status";
@@ -131,6 +131,22 @@ function VerdictBody({
 
       <section>
         <h4 className="mb-2 text-sm font-semibold">What this change does</h4>
+        {change.proposal && (
+          <div className="mb-3 flex gap-2.5 rounded-xl border bg-muted/40 p-3">
+            <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-foreground text-background">
+              <Sparkles className="size-3.5" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-center gap-2 text-xs font-medium">
+                Architect
+                <span className="rounded border bg-background px-1.5 font-mono text-[10px] font-normal text-muted-foreground">
+                  {change.proposal.mode === "live" ? modelLabel(change.proposal.model) : "fixture proposer"}
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed">{change.proposal.rationale}</p>
+            </div>
+          </div>
+        )}
         <div className="space-y-3">
           {agentsChanged.map(({ key, base, proposed }) => (
             <div key={key} className="space-y-1.5">

@@ -1,6 +1,6 @@
-import { and, eq, inArray, max } from "drizzle-orm";
+import { and, desc, eq, inArray, max } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { agents, agentVersions, changes, type ChangeExplanation } from "@/db/schema";
+import { agents, agentVersions, changes, runs, type ChangeExplanation, type ChangeProposal } from "@/db/schema";
 import type { AgentConfig, ScenarioResult, VersionSet } from "@/domain/schemas";
 import { emit } from "@/events";
 import type { ModelMode } from "@/runtime/models";
@@ -16,6 +16,7 @@ export type ProposeInput = {
   intent: string;
   edits: Record<string, AgentEdit>;
   parentChangeId?: string;
+  proposal?: ChangeProposal;
 };
 
 /** Records the user's intent and writes one new immutable AgentVersion per edited agent. Nothing goes live yet. */
@@ -32,6 +33,7 @@ export async function proposeChange(db: Db, input: ProposeInput) {
         intent: input.intent,
         baseVersionIds: Object.fromEntries(Object.entries(current).map(([k, v]) => [k, v.versionId])),
         proposedVersionIds: {},
+        proposal: input.proposal ?? null,
       })
       .returning();
 
@@ -64,7 +66,12 @@ export async function proposeChange(db: Db, input: ProposeInput) {
       projectId: input.projectId,
       changeId: change.id,
       type: "change.created",
-      payload: { intent: input.intent, agents: Object.keys(input.edits), parentChangeId: input.parentChangeId ?? null },
+      payload: {
+        intent: input.intent,
+        agents: Object.keys(input.edits),
+        parentChangeId: input.parentChangeId ?? null,
+        proposal: input.proposal ?? null,
+      },
     });
     return proposed;
   });
@@ -224,7 +231,12 @@ export async function applyChange(db: Db, changeId: string) {
  * "Keep the rule → Fix it": the scenario stays as-is; a follow-up Change revises the failed one so the intent
  * is met without breaking the rule. The failed change is marked resolved and never goes live.
  */
-export async function keepRuleAndFix(db: Db, failedChangeId: string, edits: Record<string, AgentEdit>) {
+export async function keepRuleAndFix(
+  db: Db,
+  failedChangeId: string,
+  edits: Record<string, AgentEdit>,
+  proposal?: ChangeProposal,
+) {
   const failed = await getChange(db, failedChangeId);
   if (failed.status !== "behavioral_failed") throw new Error(`Change is not behaviorally failed (status: ${failed.status})`);
   await db
@@ -242,5 +254,24 @@ export async function keepRuleAndFix(db: Db, failedChangeId: string, edits: Reco
     intent: `${failed.intent} (Keep the rule → Fix it)`,
     edits,
     parentChangeId: failedChangeId,
+    proposal,
   });
+}
+
+/**
+ * Everything needed to revise a behaviorally failed change: what is live, what was proposed, and how the
+ * proposal failed (from its verification run).
+ */
+export async function loadFixContext(db: Db, failedChangeId: string) {
+  const failed = await getChange(db, failedChangeId);
+  const live = await loadCurrentVersions(db, failed.projectId);
+  const blocked = await candidateVersions(db, failed);
+  const [run] = await db
+    .select()
+    .from(runs)
+    .where(eq(runs.changeId, failedChangeId))
+    .orderBy(desc(runs.startedAt))
+    .limit(1);
+  const scenarios = await loadScenarios(db, failed.projectId);
+  return { failed, live, blocked, results: run?.results ?? [], scenarios };
 }

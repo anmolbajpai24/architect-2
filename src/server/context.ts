@@ -36,13 +36,21 @@ export function busyJob(): string | null {
   return g.__architectBusy ?? null;
 }
 
+/** Takes the one-job lock for work done inside a request (e.g. drafting). Returns a release function, or null if busy. */
+export function claimBusy(label: string): (() => void) | null {
+  if (busyJob()) return null;
+  g.__architectBusy = label;
+  return () => {
+    if (g.__architectBusy === label) g.__architectBusy = null;
+  };
+}
+
 /**
  * Runs `job` after the response is sent. Progress reaches the client through the events table;
  * a crash is recorded as a `job.failed` event instead of leaving the UI waiting.
  */
 export function startJob(db: Db, projectId: string, label: string, job: () => Promise<unknown>): boolean {
-  if (busyJob()) return false;
-  g.__architectBusy = label;
+  if (!claimBusy(label)) return false;
   after(async () => {
     try {
       await job();

@@ -8,7 +8,7 @@ import type { WorkspaceSnapshot } from "@/server/workspace";
 import { AgentInspector } from "./agent-inspector";
 import { AgentSystem } from "./agent-system";
 import { ChangesPanel } from "./changes-panel";
-import { shortId } from "./format";
+import { modelLabel, shortId } from "./format";
 import { ScenarioInspector } from "./scenario-inspector";
 import { ScenarioStrip, type StripContext } from "./scenario-strip";
 import { scenarioStatus, streamingProgress, useWorkspace } from "./use-workspace";
@@ -84,6 +84,14 @@ export function Workspace({ initial }: { initial: WorkspaceSnapshot }) {
             hint={snapshot.env.db === "pglite" ? "In-process Postgres; data resets when the server restarts. Set DATABASE_URL for Supabase." : "Supabase Postgres via DATABASE_URL."}
           />
           <EnvBadge
+            label={`proposer: ${snapshot.env.proposer.mode === "live" ? modelLabel(snapshot.env.proposer.model) : "fixture"}`}
+            hint={
+              snapshot.env.proposer.mode === "live"
+                ? `Architect drafts changes with ${snapshot.env.proposer.model}. Every draft is still verified before it can go live.`
+                : "Offline fixture proposer: replays the recorded edits for the scripted demo request only. Set ANTHROPIC_API_KEY (or ARCHITECT_PROPOSER=live) to draft any change."
+            }
+          />
+          <EnvBadge
             label={`${snapshot.env.mode} models`}
             hint={snapshot.env.mode === "fixture" ? "Agents run on the deterministic fixture model so the demo reproduces exactly. Set ARCHITECT_MODEL_MODE=live for real models." : "Agents run on the provider models in their configs."}
           />
@@ -131,6 +139,7 @@ export function Workspace({ initial }: { initial: WorkspaceSnapshot }) {
             snapshot={snapshot}
             events={events}
             busy={api.busy}
+            drafting={api.busyLabel === "Drafting change"}
             openChangeId={openChangeId}
             onPropose={propose}
             onOpenChange={setOpenChangeId}

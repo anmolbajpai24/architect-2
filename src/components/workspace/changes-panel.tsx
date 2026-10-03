@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, CornerDownRight, GitPullRequestArrow, Sparkles } from "lucide-react";
+import { ArrowRight, CornerDownRight, GitPullRequestArrow, LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkspaceChange, WorkspaceEvent, WorkspaceSnapshot } from "@/server/workspace";
 import { cn } from "@/lib/utils";
-import { describeEvent, shortId } from "./format";
+import { describeEvent, modelLabel, shortId } from "./format";
 import { RelativeTime } from "./relative-time";
 import { ChangeStatusPill } from "./status";
 
@@ -25,10 +25,14 @@ export function agentName(snapshot: WorkspaceSnapshot, key: string) {
 function Composer({
   suggestions,
   disabled,
+  drafting,
+  proposerLabel,
   onPropose,
 }: {
   suggestions: string[];
   disabled: boolean;
+  drafting: boolean;
+  proposerLabel: string;
   onPropose: (intent: string) => Promise<boolean>;
 }) {
   const [intent, setIntent] = useState("");
@@ -62,10 +66,24 @@ function Composer({
           ))}
         </div>
         <Button size="sm" onClick={submit} disabled={disabled || !intent.trim()}>
-          Propose change
-          <ArrowRight data-icon="inline-end" />
+          {drafting ? (
+            <>
+              <LoaderCircle data-icon="inline-start" className="animate-spin" /> Drafting…
+            </>
+          ) : (
+            <>
+              Propose change
+              <ArrowRight data-icon="inline-end" />
+            </>
+          )}
         </Button>
       </div>
+      {drafting && (
+        <p className="mt-2 border-t pt-2 text-[11px] text-muted-foreground">
+          Architect is drafting edits with {proposerLabel}. They will be verified against every scenario before anything
+          goes live.
+        </p>
+      )}
     </div>
   );
 }
@@ -150,6 +168,7 @@ export function ChangesPanel({
   snapshot,
   events,
   busy,
+  drafting,
   openChangeId,
   onPropose,
   onOpenChange,
@@ -157,13 +176,20 @@ export function ChangesPanel({
   snapshot: WorkspaceSnapshot;
   events: WorkspaceEvent[];
   busy: boolean;
+  drafting: boolean;
   openChangeId: string | null;
   onPropose: (intent: string) => Promise<boolean>;
   onOpenChange: (id: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-5">
-      <Composer suggestions={snapshot.suggestedIntents} disabled={busy} onPropose={onPropose} />
+      <Composer
+        suggestions={snapshot.suggestedIntents}
+        disabled={busy}
+        drafting={drafting}
+        proposerLabel={snapshot.env.proposer.mode === "live" ? modelLabel(snapshot.env.proposer.model) : "the offline fixture proposer"}
+        onPropose={onPropose}
+      />
 
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Changes</h3>

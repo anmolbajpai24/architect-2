@@ -26,6 +26,13 @@ export function describeEvent(e: WorkspaceEvent, snapshot: WorkspaceSnapshot): {
   switch (e.type) {
     case "project.seeded":
       return { text: "Demo project seeded: 3 agents at v1, 3 scenarios", tone: "muted" };
+    case "change.drafting":
+      return {
+        text: p.fix ? "Architect is drafting a fix that keeps the rule" : `Architect is drafting a change: “${p.intent}”`,
+        tone: "muted",
+      };
+    case "change.draft_failed":
+      return { text: `No change drafted: ${p.message}`, tone: "bad" };
     case "change.created":
       return { text: `Change proposed: “${p.intent}”`, tone: "default" };
     case "change.structural_checked":

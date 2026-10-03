@@ -1,27 +1,41 @@
 import { z } from "zod";
 import { proposeChange, verifyChange } from "@/changes/change";
-import { editsForIntent } from "@/changes/proposer";
-import { busyJob, getDb, getModes, getProjectId, startJob } from "@/server/context";
+import { draftChange, ProposalError, proposerConfig, type Draft } from "@/changes/proposer";
+import { emit } from "@/events";
+import { loadCurrentVersions } from "@/scenarios/runner";
+import { claimBusy, getDb, getModes, getProjectId, startJob } from "@/server/context";
 import { busyResponse, errorResponse } from "@/server/responses";
 
-const Body = z.object({ intent: z.string().trim().min(1) });
+const Body = z.object({ intent: z.string().trim().min(1).max(2000) });
 
-/** Records the request as a Change, then verifies it in the background (structural → behavioral). */
+/**
+ * Architect drafts edits for the request (LLM proposer), records them as a Change, then verifies it in the
+ * background (structural → behavioral). Drafting happens in the request so failures come straight back.
+ */
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return errorResponse("Describe the change you want.", 400);
-  const edits = editsForIntent(parsed.data.intent);
-  if (!edits) {
-    return errorResponse(
-      "This build only turns the scripted demo request into a configuration change. Free-form requests need the LLM proposer, which comes in a later phase.",
-      422,
-    );
-  }
-  if (busyJob()) return busyResponse();
+  const { intent } = parsed.data;
+
+  const release = claimBusy("Drafting change");
+  if (!release) return busyResponse();
 
   const { db } = await getDb();
   const projectId = await getProjectId(db);
-  const change = await proposeChange(db, { projectId, intent: parsed.data.intent, edits });
+  const config = proposerConfig();
+  let draft: Draft;
+  try {
+    await emit(db, { projectId, type: "change.drafting", payload: { intent, mode: config.mode, model: config.model } });
+    draft = await draftChange({ intent, versions: await loadCurrentVersions(db, projectId), config });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await emit(db, { projectId, type: "change.draft_failed", payload: { intent, message } });
+    return errorResponse(message, err instanceof ProposalError ? 422 : 500);
+  } finally {
+    release();
+  }
+
+  const change = await proposeChange(db, { projectId, intent, edits: draft.edits, proposal: draft.proposal });
   startJob(db, projectId, "Verifying change", () => verifyChange(db, change.id, getModes()));
   return Response.json({ changeId: change.id }, { status: 202 });
 }

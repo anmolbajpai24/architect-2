@@ -86,6 +86,9 @@ export type ChangeExplanation = {
   options: { id: "keep_rule_fix" | "change_rule"; label: string }[];
 };
 
+/** Who drafted a change's edits and why, as told to the user. */
+export type ChangeProposal = { mode: "fixture" | "live"; model: string; rationale: string };
+
 export const changes = pgTable("changes", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id")
@@ -100,6 +103,8 @@ export const changes = pgTable("changes", {
   proposedVersionIds: jsonb("proposed_version_ids").$type<Record<string, string>>().notNull(),
   structural: jsonb("structural").$type<StructuralCheck[]>(),
   explanation: jsonb("explanation").$type<ChangeExplanation>(),
+  /** Null for changes whose edits were supplied directly (e.g. by a script). */
+  proposal: jsonb("proposal").$type<ChangeProposal>(),
   /** How the user resolved a failed change, e.g. "keep_rule_fix". */
   resolution: text("resolution"),
   createdAt: createdAt(),

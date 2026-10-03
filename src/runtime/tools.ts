@@ -57,10 +57,14 @@ export async function searchCatalog(db: Db, input: SearchCatalogInput): Promise<
 /** Registry of tools an AgentVersion may reference by name. */
 export const TOOL_NAMES = ["search_catalog"] as const;
 
+export const TOOL_DESCRIPTIONS: Record<(typeof TOOL_NAMES)[number], string> = {
+  search_catalog: "Search the laptop store's in-stock catalog. Returns at most 5 matches, cheapest first.",
+};
+
 export function buildTools(db: Db, names: string[]): ToolSet {
   const registry: ToolSet = {
     search_catalog: tool({
-      description: "Search the laptop store's in-stock catalog. Returns at most 5 matches, cheapest first.",
+      description: TOOL_DESCRIPTIONS.search_catalog,
       inputSchema: SearchCatalogInput,
       execute: (input) => searchCatalog(db, input),
     }),
