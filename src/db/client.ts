@@ -10,7 +10,8 @@ import * as schema from "./schema";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-const migrationsFolder = path.resolve(import.meta.dirname, "../../drizzle");
+// Resolved from the project root: scripts run there via pnpm, and Next bundles this file elsewhere.
+const migrationsFolder = path.resolve(process.cwd(), "drizzle");
 
 export function loadEnv() {
   try {

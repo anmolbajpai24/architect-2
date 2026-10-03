@@ -59,9 +59,36 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - `pnpm scenarios:regress [--judge] [--live]`: the key demo end to end; exits non-zero if any step deviates.
 - `pnpm typecheck`, `pnpm db:generate`.
 
+## Workspace UI (Phase 2)
+
+- `pnpm dev` → http://localhost:3000. Single demo project; `/` renders the workspace.
+- Server: `src/server/context.ts` (one DB handle per process on `globalThis`, background jobs via Next `after()`,
+  one job at a time), `src/server/workspace.ts` (the single read model the UI renders).
+- Routes (`src/app/api/*`): `GET workspace`, `GET events` (SSE, polls the events table from `?after=seq`),
+  `POST runs`, `POST changes`, `POST changes/:id/fix`, `POST changes/:id/apply` (applies, then re-runs scenarios),
+  `POST reset`.
+- Client (`src/components/workspace/*`): `useWorkspace` = snapshot + EventSource; events drive live progress and
+  a debounced snapshot refetch.
+- `src/changes/proposer.ts` maps the scripted demo request to fixture edits; free-form requests are rejected
+  until the LLM proposer exists.
+- UI env: `ARCHITECT_MODEL_MODE=live`, `ARCHITECT_JUDGE=live`. PGlite state is per server process.
+- Pure helpers for client code live in `src/domain/format.ts`; never import AI SDK or DB modules into components.
+
 ## Phases
 
-- Phase 1 (current): headless vertical slice — catalog seed, agents + immutable versions, scenarios,
+- Phase 1 (done): headless vertical slice — catalog seed, agents + immutable versions, scenarios,
   agent runtime, assertions, structural check, Change creation, regression + fix fixtures,
   `pnpm scenarios:run` and `pnpm scenarios:regress`.
-- Not yet: UI, GitHub, E2B, auth, full docs.
+- Phase 2 (done): workspace UI — Scenario strip, Scenario inspector, Agent inspector, Change/Verdict drawer,
+  regression flow over SSE.
+- Not yet: LLM change proposer, "Change the rule", GitHub, E2B, auth, full docs.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

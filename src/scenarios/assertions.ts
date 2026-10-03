@@ -36,13 +36,7 @@ export function applyOperator(op: Operator, actual: unknown, expected: unknown):
   }
 }
 
-export function describeAssertion(a: Assertion): string {
-  if (a.type === "judge") return `judge ${a.agent}: "${a.criterion}"`;
-  const subject = a.type === "tool" ? `tool ${a.tool}${a.agent ? `@${a.agent}` : ""} ${a.path}` : `output ${a.agent}.${a.path}`;
-  const value = a.op === "exists" || a.op === "is_null" ? "" : ` ${JSON.stringify(a.value)}`;
-  const match = a.type === "tool" && a.path !== "count" ? ` (${a.match})` : "";
-  return `${subject} ${a.op}${value}${match}`;
-}
+export { describeAssertion } from "@/domain/format";
 
 function evaluateTool(a: Extract<Assertion, { type: "tool" }>, trace: Trace): AssertionResult {
   const calls = trace.toolCalls.filter((c) => c.tool === a.tool && (!a.agent || c.agent === a.agent));
