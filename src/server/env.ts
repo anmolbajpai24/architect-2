@@ -20,6 +20,8 @@ const EnvSchema = z.object({
   DATABASE_URL: optionalString,
   ANTHROPIC_API_KEY: optionalString,
   OPENAI_API_KEY: optionalString,
+  /** Which project definition this server serves (src/projects/registry.ts). Unset: the Laptop Advisor demo. */
+  ARCHITECT_PROJECT: optionalString,
   ARCHITECT_MODEL_MODE: optionalMode(["fixture", "live"]),
   ARCHITECT_JUDGE: optionalMode(["skip", "live"]),
   ARCHITECT_PROPOSER: optionalMode(["fixture", "live"]),

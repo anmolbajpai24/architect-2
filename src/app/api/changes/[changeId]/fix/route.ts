@@ -3,8 +3,8 @@ import { keepRuleAndFix, loadBlockedChangeContext, verifyChange } from "@/change
 import { draftFix, ProposalError, proposerConfig, type Draft } from "@/changes/proposer";
 import { changes } from "@/db/schema";
 import { emit } from "@/events";
-import { liveModelProblem } from "@/server/config";
-import { claimBusy, getDb, getModes, startJob } from "@/server/context";
+import { agentRuntimeProblem } from "@/server/config";
+import { claimBusy, getDb, getRunOptions, getRuntime, startJob } from "@/server/context";
 import { busyResponse, errorResponse } from "@/server/responses";
 
 export const maxDuration = 60;
@@ -23,7 +23,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
     return errorResponse("Only an unresolved, behaviorally failed change can be fixed.", 409);
   }
 
-  const problem = liveModelProblem();
+  const problem = agentRuntimeProblem();
   if (problem) return errorResponse(problem, 503);
 
   const release = claimBusy("Drafting fix");
@@ -46,6 +46,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
       editedAgents: Object.keys(failed.proposedVersionIds),
       scenarios: context.scenarios,
       results: context.results,
+      runtime: getRuntime(),
       config,
     });
   } catch (err) {
@@ -57,6 +58,6 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
   }
 
   const fix = await keepRuleAndFix(db, changeId, draft.edits, draft.proposal);
-  startJob(db, failed.projectId, "Verifying fix", () => verifyChange(db, fix.id, getModes()));
+  startJob(db, failed.projectId, "Verifying fix", () => verifyChange(db, fix.id, getRunOptions()));
   return Response.json({ changeId: fix.id }, { status: 202 });
 }

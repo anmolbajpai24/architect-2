@@ -1,7 +1,7 @@
 import { MockLanguageModelV4 } from "ai/test";
 import { fixEdits } from "@/fixtures/fix";
 import { REGRESSION_INTENT, regressionEdits } from "@/fixtures/regression";
-import type { AgentEdit } from "./change";
+import type { AgentEdit } from "@/changes/change";
 
 /**
  * Deterministic stand-in for the proposer LLM (ARCHITECT_PROPOSER=fixture). It answers through the same

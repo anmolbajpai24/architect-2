@@ -64,7 +64,27 @@ function evaluateOutput(a: Extract<Assertion, { type: "output" }>, trace: Trace)
 
 const Verdict = z.object({ pass: z.boolean(), reason: z.string() });
 
-async function evaluateJudge(a: JudgeAssertion, trace: Trace, message: string, mode: JudgeMode): Promise<AssertionResult> {
+/**
+ * The judge's framing. It is domain-neutral: a project may supply one sentence of context about what its
+ * application is (ProjectDefinition.judgeContext), and the judge works without it.
+ */
+function judgeInstructions(context: string | undefined): string {
+  return [
+    "You are a strict evaluator of a multi-agent application's behavior.",
+    context?.trim(),
+    "Decide whether the agent output satisfies the criterion. Judge only what is written.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+async function evaluateJudge(
+  a: JudgeAssertion,
+  trace: Trace,
+  message: string,
+  mode: JudgeMode,
+  judgeContext?: string,
+): Promise<AssertionResult> {
   if (mode === "skip") return { assertion: a, status: "skipped", reason: "judge disabled (pass --judge or --live)" };
   const spec = judgeModelSpec();
   if (!hasCredentials(spec)) return { assertion: a, status: "skipped", reason: `no API key for ${spec}` };
@@ -73,9 +93,8 @@ async function evaluateJudge(a: JudgeAssertion, trace: Trace, message: string, m
   try {
     const { output } = await generateText({
       model: resolveModel(spec),
-      instructions:
-        "You are a strict evaluator of a laptop store's AI assistant. Decide whether the agent output satisfies the criterion. Judge only what is written.",
-      prompt: `Criterion:\n${a.criterion}\n\nCustomer message:\n${message}\n\nAgent output (${a.agent}):\n${JSON.stringify(agent.output, null, 2)}`,
+      instructions: judgeInstructions(judgeContext),
+      prompt: `Criterion:\n${a.criterion}\n\nInput message:\n${message}\n\nAgent output (${a.agent}):\n${JSON.stringify(agent.output, null, 2)}`,
       output: Output.object({ schema: Verdict }),
     });
     return { assertion: a, status: output.pass ? "pass" : "fail", reason: output.reason };
@@ -89,6 +108,8 @@ export async function evaluateAssertion(
   trace: Trace,
   message: string,
   judge: JudgeMode,
+  /** One sentence about the application under test, passed to the LLM judge when the project supplies it. */
+  judgeContext?: string,
 ): Promise<AssertionResult> {
   switch (a.type) {
     case "tool":
@@ -96,6 +117,6 @@ export async function evaluateAssertion(
     case "output":
       return evaluateOutput(a, trace);
     case "judge":
-      return evaluateJudge(a, trace, message, judge);
+      return evaluateJudge(a, trace, message, judge, judgeContext);
   }
 }

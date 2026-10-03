@@ -1,8 +1,12 @@
-import { tool, type ToolSet } from "ai";
-import { asc } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
-import type { Db } from "@/db/client";
 import { catalogItems } from "@/db/schema";
+import type { ToolContext, ToolDefinition } from "@/runtime/tool-registry";
+
+/**
+ * `search_catalog`: the Laptop Advisor demo's one tool. It is registered through the generic tool registry as
+ * part of the project's definition, so the engine never names it and another project can register other tools.
+ */
 
 export const SearchCatalogInput = z.object({
   max_price_usd: z.number().optional().describe("Maximum price in USD"),
@@ -26,9 +30,16 @@ export type CatalogHit = {
 
 export type SearchCatalogResult = { count: number; items: CatalogHit[] };
 
-/** In-stock laptops matching every given filter, cheapest first, at most 5. */
-export async function searchCatalog(db: Db, input: SearchCatalogInput): Promise<SearchCatalogResult> {
-  const rows = await db.select().from(catalogItems).orderBy(asc(catalogItems.priceUsd));
+/** In-stock laptops in this project's catalog matching every given filter, cheapest first, at most 5. */
+export async function searchCatalog(
+  { db, projectId }: ToolContext,
+  input: SearchCatalogInput,
+): Promise<SearchCatalogResult> {
+  const rows = await db
+    .select()
+    .from(catalogItems)
+    .where(eq(catalogItems.projectId, projectId))
+    .orderBy(asc(catalogItems.priceUsd));
   const useCase = input.use_case?.toLowerCase();
   const items = rows
     .filter(
@@ -54,31 +65,12 @@ export async function searchCatalog(db: Db, input: SearchCatalogInput): Promise<
   return { count: items.length, items };
 }
 
-/** Registry of tools an AgentVersion may reference by name. */
-export const TOOL_NAMES = ["search_catalog"] as const;
-
-export const TOOL_DESCRIPTIONS: Record<(typeof TOOL_NAMES)[number], string> = {
-  search_catalog: "Search the laptop store's in-stock catalog. Returns at most 5 matches, cheapest first.",
-};
-
-/** Shape of each tool's result, for anything that writes "result.*" assertion paths. */
-export const TOOL_RESULT_SHAPES: Record<(typeof TOOL_NAMES)[number], string> = {
-  search_catalog:
+export const searchCatalogTool: ToolDefinition<SearchCatalogInput, SearchCatalogResult> = {
+  name: "search_catalog",
+  description: "Search the laptop store's in-stock catalog. Returns at most 5 matches, cheapest first.",
+  inputSchema: SearchCatalogInput,
+  resultShape:
     "{ count: number, items: [{ sku: string, name: string, price_usd: number, ram_gb: number, gpu: string, dedicated_gpu: boolean, weight_kg: number, use_cases: string[] }] }",
+  resultSummary: { itemsPath: "items", labelFields: ["sku", "name"] },
+  build: (ctx) => (input) => searchCatalog(ctx, input),
 };
-
-/** JSON Schema of each tool's input, for anything that writes "args.*" assertion paths. */
-export const TOOL_INPUT_SCHEMAS: Record<(typeof TOOL_NAMES)[number], unknown> = {
-  search_catalog: z.toJSONSchema(SearchCatalogInput),
-};
-
-export function buildTools(db: Db, names: string[]): ToolSet {
-  const registry: ToolSet = {
-    search_catalog: tool({
-      description: TOOL_DESCRIPTIONS.search_catalog,
-      inputSchema: SearchCatalogInput,
-      execute: (input) => searchCatalog(db, input),
-    }),
-  };
-  return Object.fromEntries(names.map((n) => [n, registry[n]]));
-}

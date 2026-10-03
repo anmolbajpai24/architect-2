@@ -6,7 +6,7 @@ import { changes } from "@/db/schema";
 import { emit } from "@/events";
 import { draftScenarioRevision, type ScenarioDraft } from "@/scenarios/proposer";
 import { canChangeRule, proposeScenarioRevision } from "@/scenarios/revisions";
-import { claimBusy, getDb } from "@/server/context";
+import { claimBusy, getDb, getRuntime } from "@/server/context";
 import { busyResponse, errorResponse } from "@/server/responses";
 
 const Body = z.object({
@@ -52,7 +52,14 @@ export async function POST(req: Request) {
       payload: { scenario: scenarioKey, request, mode: config.mode, model: config.model },
     });
     try {
-      draft = await draftScenarioRevision({ scenario, request, versions: context.live, failure, config });
+      draft = await draftScenarioRevision({
+        scenario,
+        request,
+        versions: context.live,
+        runtime: getRuntime(),
+        failure,
+        config,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await emit(db, {

@@ -1,9 +1,9 @@
 import { generateText, isStepCount, jsonSchema, Output } from "ai";
 import type { Db } from "@/db/client";
 import type { AgentTrace, Trace, VersionSet } from "@/domain/schemas";
+import type { ProjectRuntime } from "@/projects/types";
 import { agentModel, type ModelMode } from "./models";
 import { buildAgentPrompt } from "./prompt";
-import { buildTools } from "./tools";
 
 /** The entry agent is the one no other agent hands off to. Structural verification guarantees exactly one. */
 export function entryAgentKey(versions: VersionSet): string {
@@ -13,20 +13,26 @@ export function entryAgentKey(versions: VersionSet): string {
   return roots[0];
 }
 
-async function runAgent(
-  db: Db,
-  key: string,
-  versions: VersionSet,
-  message: string,
-  context: Record<string, unknown>,
-  mode: ModelMode,
-): Promise<AgentTrace> {
-  const { versionId, config } = versions[key];
+/** One execution of a project's agent system: which agents, on which models, with which project's tools. */
+export type RunSystemOptions = {
+  projectId: string;
+  versions: VersionSet;
+  message: string;
+  mode: ModelMode;
+  /** The project being run: supplies the tool registry and, in fixture mode, the simulator. */
+  runtime: ProjectRuntime;
+};
+
+async function runAgent(db: Db, key: string, opts: RunSystemOptions, context: Record<string, unknown>): Promise<AgentTrace> {
+  const { versionId, config } = opts.versions[key];
   const result = await generateText({
-    model: agentModel(key, config.model, mode),
+    model: agentModel(key, config.model, opts.mode, opts.runtime.simulator),
     instructions: config.instructions,
-    prompt: buildAgentPrompt(message, context),
-    tools: config.tools.length > 0 ? buildTools(db, config.tools) : undefined,
+    prompt: buildAgentPrompt(opts.message, context),
+    tools:
+      config.tools.length > 0
+        ? opts.runtime.tools.build({ db, projectId: opts.projectId }, config.tools)
+        : undefined,
     output: Output.object({ schema: jsonSchema<Record<string, unknown>>(config.outputSchema as any) }),
     stopWhen: isStepCount(6),
   });
@@ -41,16 +47,16 @@ async function runAgent(
 }
 
 /**
- * Runs the agent system for one customer message: the entry agent's handoffs run in order, each seeing the
+ * Runs the agent system for one input message: the entry agent's handoffs run in order, each seeing the
  * outputs before it, then the entry agent composes the final output.
  */
-export async function runSystem(db: Db, versions: VersionSet, message: string, mode: ModelMode): Promise<Trace> {
+export async function runSystem(db: Db, opts: RunSystemOptions): Promise<Trace> {
   const trace: Trace = { agents: {}, toolCalls: [] };
   try {
-    const entry = entryAgentKey(versions);
+    const entry = entryAgentKey(opts.versions);
     const context: Record<string, unknown> = {};
-    for (const key of [...versions[entry].config.handoffs, entry]) {
-      const agentTrace = await runAgent(db, key, versions, message, context, mode);
+    for (const key of [...opts.versions[entry].config.handoffs, entry]) {
+      const agentTrace = await runAgent(db, key, opts, context);
       trace.agents[key] = agentTrace;
       trace.toolCalls.push(...agentTrace.toolCalls);
       context[key] = agentTrace.output;

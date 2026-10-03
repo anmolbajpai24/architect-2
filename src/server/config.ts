@@ -2,7 +2,7 @@ import { proposerConfig } from "@/changes/proposer";
 import { githubStatus, type GitHubStatus } from "@/github/config";
 import { hasCredentials, judgeModelSpec } from "@/runtime/models";
 import type { DbKind } from "@/db/client";
-import { getModes } from "./context";
+import { getModes, getRuntime } from "./context";
 import { isManagedDeployment, serverEnv } from "./env";
 
 /**
@@ -25,6 +25,7 @@ export type ConfigReport = {
 export function configReport(): ConfigReport {
   const env = serverEnv();
   const { mode, judge } = getModes();
+  const project = getRuntime();
   const proposer = proposerConfig();
   const judgeModel = judgeModelSpec();
   const anyProviderKey = Boolean(env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY);
@@ -36,7 +37,8 @@ export function configReport(): ConfigReport {
       persistent: Boolean(env.DATABASE_URL),
       configured: Boolean(env.DATABASE_URL),
     },
-    agents: { mode, configured: mode === "fixture" || anyProviderKey },
+    // Demo mode is only runnable for a project that ships a deterministic simulator.
+    agents: { mode, configured: mode === "fixture" ? Boolean(project.simulator) : anyProviderKey },
     proposer: { mode: proposer.mode, model: proposer.model, configured: proposer.mode === "fixture" || hasCredentials(proposer.model) },
     judge: { mode: judge, model: judgeModel, configured: judge === "skip" || hasCredentials(judgeModel) },
     github: githubStatus(),
@@ -46,7 +48,11 @@ export function configReport(): ConfigReport {
   // Each problem is a mode this server says it is in but cannot actually run. Reported, never papered over by
   // dropping back to the fixtures: a reviewer has to be able to tell a recorded result from a real one.
   if (!report.agents.configured) {
-    report.problems.push("ARCHITECT_MODEL_MODE=live needs ANTHROPIC_API_KEY (or OPENAI_API_KEY for an openai: model).");
+    report.problems.push(
+      mode === "fixture"
+        ? `ARCHITECT_MODEL_MODE=fixture needs a project simulator; "${project.slug}" defines none, so set ARCHITECT_MODEL_MODE=live.`
+        : "ARCHITECT_MODEL_MODE=live needs ANTHROPIC_API_KEY (or OPENAI_API_KEY for an openai: model).",
+    );
   }
   if (!report.proposer.configured) {
     const key = report.proposer.model.startsWith("openai:") ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
@@ -63,12 +69,18 @@ export function configReport(): ConfigReport {
 }
 
 /**
- * Blocks work that would run agents on a provider this server has no key for. Returned to the user instead of
- * letting the provider fail mid-run, and worded for the product: the variable names stay in the Environment panel.
+ * Blocks work this server's agent runtime can't actually do: live models with no provider key, or Demo mode for a
+ * project with no deterministic simulator. Returned to the user instead of letting the run fail halfway, and
+ * worded for the product: the variable names stay in the Environment panel.
  */
-export function liveModelProblem(): string | null {
+export function agentRuntimeProblem(): string | null {
   const { mode } = getModes();
   const env = serverEnv();
-  if (mode !== "live" || env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY) return null;
+  if (mode === "fixture") {
+    return getRuntime().simulator
+      ? null
+      : "This project has no Demo mode behavior to replay, so its agents can only run on real models. Open Environment for details.";
+  }
+  if (env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY) return null;
   return "This workspace is set to run agents on real models, but no model provider is connected on the server. Open Environment for details.";
 }

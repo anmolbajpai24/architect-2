@@ -13,7 +13,8 @@ import { REGRESSION_INTENT } from "@/fixtures/regression";
 import { githubStatus } from "@/github/config";
 import { createGitHubRestProvider } from "@/github/provider";
 import { loadCurrentVersions, runScenarios } from "@/scenarios/runner";
-import { seedDemo } from "@/seed";
+import { laptopAdvisor } from "@/demo/project";
+import { toProjectRuntime } from "@/projects/registry";
 import { getWorkspace } from "@/server/workspace";
 import { branchFor } from "@/shipping/artifact";
 import { shipChange, ShipError, type ShipInput } from "@/shipping/ship";
@@ -43,18 +44,23 @@ const github: ShipInput["github"] = {
   status: githubStatus(env),
   provider: createGitHubRestProvider({ getToken: async () => TOKEN, fetch: fake.fetch }),
 };
-const opts = { mode: "fixture" as const, judge: "skip" as const };
+const opts = { mode: "fixture" as const, judge: "skip" as const, runtime: toProjectRuntime(laptopAdvisor) };
 const proposer: ProposerConfig = { mode: "fixture", model: proposerConfig().model };
 
 const { db, close } = await openDb();
 try {
-  const projectId = await seedDemo(db, { reset: true });
+  const projectId = await laptopAdvisor.seed(db, { reset: true });
   const ship = (changeId: string, extra: Partial<ShipInput> = {}) => shipChange(db, { changeId, github, publicUrl: null, ...extra });
   const shipEvents = async (changeId: string, type: string) =>
     db.select().from(events).where(and(eq(events.changeId, changeId), eq(events.type, type)));
 
   heading("Gate: a change that failed behavioral verification");
-  const draft = await draftChange({ intent: REGRESSION_INTENT, versions: await loadCurrentVersions(db, projectId), config: proposer });
+  const draft = await draftChange({
+    intent: REGRESSION_INTENT,
+    versions: await loadCurrentVersions(db, projectId),
+    runtime: opts.runtime,
+    config: proposer,
+  });
   const persuasive = await proposeChange(db, { projectId, intent: REGRESSION_INTENT, edits: draft.edits, proposal: draft.proposal });
   const blocked = await verifyChange(db, persuasive.id, opts);
   check(blocked.change.status === "behavioral_failed", "the persuasive change is blocked by a scenario");
@@ -69,6 +75,7 @@ try {
     editedAgents: Object.keys(persuasive.proposedVersionIds),
     scenarios: ctx.scenarios,
     results: ctx.results,
+    runtime: opts.runtime,
     config: proposer,
   });
   const fix = await keepRuleAndFix(db, persuasive.id, fixDraft.edits, fixDraft.proposal);

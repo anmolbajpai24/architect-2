@@ -1,27 +1,59 @@
 import { after } from "next/server";
+import { eq } from "drizzle-orm";
 import { openDb, type Db } from "@/db/client";
+import { projects } from "@/db/schema";
 import { emit } from "@/events";
+import { configuredProjectSlug, projectDefinition, projectRuntime } from "@/projects/registry";
+import type { ProjectRuntime } from "@/projects/types";
 import type { ModelMode } from "@/runtime/models";
 import type { JudgeMode } from "@/scenarios/assertions";
-import { seedDemo } from "@/seed";
 import { serverEnv } from "@/server/env";
 
 type Context = { db: Db; kind: "postgres" | "pglite" };
 
 /** One DB handle per server process; kept on globalThis so dev hot-reloads don't open a fresh PGlite. */
-const g = globalThis as unknown as { __architectDb?: Promise<Context>; __architectBusy?: string | null };
+const g = globalThis as unknown as {
+  __architectDb?: Promise<Context>;
+  __architectBusy?: string | null;
+  __architectRuntime?: Map<string, ProjectRuntime>;
+};
 
 export function getDb(): Promise<Context> {
   g.__architectDb ??= openDb().then(async ({ db, kind }) => {
-    await seedDemo(db);
+    await bootstrapProject(db);
     return { db, kind };
   });
   return g.__architectDb;
 }
 
-/** The single demo project (seeded on first use). */
+/**
+ * The configured project, resolved from its definition: tool registry, simulator, example copy. Pure
+ * configuration — no database — so it is safe to call from anywhere on the server. Cached per process because
+ * building the registry converts each tool's input schema to JSON Schema.
+ */
+export function getRuntime(slug: string = configuredProjectSlug()): ProjectRuntime {
+  const cache = (g.__architectRuntime ??= new Map());
+  let runtime = cache.get(slug);
+  if (!runtime) {
+    runtime = projectRuntime(slug);
+    cache.set(slug, runtime);
+  }
+  return runtime;
+}
+
+/**
+ * Creates the configured project's rows if they are absent. An explicit bootstrap, not something every request
+ * implies: the in-process database starts empty on each cold start, so the seeded demo still appears by itself.
+ */
+export async function bootstrapProject(db: Db, opts?: { reset?: boolean }): Promise<string> {
+  return projectDefinition().seed(db, opts);
+}
+
+/** The configured project's id, looked up by slug. Bootstrapped on first use if the database has no such row. */
 export async function getProjectId(db: Db): Promise<string> {
-  return seedDemo(db);
+  const slug = configuredProjectSlug();
+  const [row] = await db.select({ id: projects.id }).from(projects).where(eq(projects.slug, slug));
+  return row ? row.id : bootstrapProject(db);
 }
 
 export function getModes(): { mode: ModelMode; judge: JudgeMode } {
@@ -31,6 +63,11 @@ export function getModes(): { mode: ModelMode; judge: JudgeMode } {
     mode: live ? "live" : "fixture",
     judge: live || env.ARCHITECT_JUDGE === "live" ? "live" : "skip",
   };
+}
+
+/** Model modes plus the project to run: the options every run and verification takes. */
+export function getRunOptions(): { mode: ModelMode; judge: JudgeMode; runtime: ProjectRuntime } {
+  return { ...getModes(), runtime: getRuntime() };
 }
 
 /**

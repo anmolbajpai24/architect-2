@@ -3,6 +3,7 @@ import type { Db } from "@/db/client";
 import { agents, agentVersions, runs, scenarios, scenarioVersions } from "@/db/schema";
 import { Assertion, type ScenarioResult, type VersionSet } from "@/domain/schemas";
 import { emit } from "@/events";
+import type { ProjectRuntime } from "@/projects/types";
 import type { ModelMode } from "@/runtime/models";
 import { runSystem } from "@/runtime/run-system";
 import { describeAssertion, evaluateAssertion, type JudgeMode } from "./assertions";
@@ -47,6 +48,8 @@ export type RunOptions = {
   changeId?: string;
   mode: ModelMode;
   judge: JudgeMode;
+  /** The project being run: its tool registry, its simulator, and any judge context it supplies. */
+  runtime: ProjectRuntime;
 };
 
 export async function runScenarios(db: Db, opts: RunOptions) {
@@ -69,12 +72,18 @@ export async function runScenarios(db: Db, opts: RunOptions) {
   const results: ScenarioResult[] = [];
   for (const scenario of await loadScenarios(db, opts.projectId)) {
     await ev("scenario.started", { scenario: scenario.key });
-    const trace = await runSystem(db, opts.versions, scenario.input.message, opts.mode);
+    const trace = await runSystem(db, {
+      projectId: opts.projectId,
+      versions: opts.versions,
+      message: scenario.input.message,
+      mode: opts.mode,
+      runtime: opts.runtime,
+    });
     for (const call of trace.toolCalls) await ev("tool.called", { scenario: scenario.key, ...call });
 
     const assertions = [];
     for (const a of scenario.assertions) {
-      const r = await evaluateAssertion(a, trace, scenario.input.message, opts.judge);
+      const r = await evaluateAssertion(a, trace, scenario.input.message, opts.judge, opts.runtime.judgeContext);
       assertions.push(r);
       await ev("assertion.evaluated", {
         scenario: scenario.key,

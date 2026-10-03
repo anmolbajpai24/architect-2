@@ -35,6 +35,7 @@ export function RuleChangePanel({
   const failure = failures.find((f) => f.scenarioKey === scenarioKey);
   const draft = scenario?.versions.find((v) => v.status === "proposed" && v.changeId === change.id);
   const drafting = api.busyLabel === "Drafting rule change";
+  const placeholder = snapshot.project.placeholders.ruleChange;
 
   if (!scenario) return null;
 
@@ -109,7 +110,7 @@ export function RuleChangePanel({
             id="rule-request"
             value={request}
             onChange={(e) => setRequest(e.target.value)}
-            placeholder="e.g. Allow recommendations up to $900 when nothing suitable exists under $600."
+            placeholder={placeholder ?? "e.g. Relax this requirement when nothing meets it."}
             className="min-h-20 text-sm"
           />
           {scenario.suggestedRuleChanges.length > 0 && (

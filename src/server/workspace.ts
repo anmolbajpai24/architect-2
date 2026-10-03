@@ -15,14 +15,13 @@ import {
   type ScenarioProposal,
   type StructuralCheck,
 } from "@/db/schema";
-import { Assertion, type AgentConfig, type ScenarioInput, type ScenarioResult } from "@/domain/schemas";
-import { proposerConfig, suggestedIntents } from "@/changes/proposer";
-import { FIXTURE_RULE_CHANGES } from "@/scenarios/fixture-proposer";
+import { Assertion, type AgentConfig, type ScenarioInput, type ScenarioResult, type ToolResultSummary } from "@/domain/schemas";
+import { proposerConfig } from "@/changes/proposer";
 import { loadScenarios } from "@/scenarios/runner";
 import { githubStatus, type GitHubStatus } from "@/github/config";
 import { checkShipGate } from "@/shipping/gate";
 import { configReport } from "./config";
-import { busyJob, getModes } from "./context";
+import { busyJob, getModes, getRuntime } from "./context";
 
 export type VersionStatus = "live" | "proposed" | "verified" | "rejected" | "superseded";
 
@@ -131,8 +130,23 @@ export type WorkspaceEvent = {
   createdAt: string;
 };
 
+/** A registered tool, as the UI needs it: enough to label it and summarize what it returned. */
+export type WorkspaceTool = {
+  name: string;
+  description: string;
+  resultSummary: ToolResultSummary | null;
+};
+
 export type WorkspaceSnapshot = {
-  project: { id: string; name: string; slug: string };
+  project: {
+    id: string;
+    name: string;
+    slug: string;
+    /** Example copy for the free-text inputs, supplied by the project definition. Null means use generic text. */
+    placeholders: { changeRequest: string | null; ruleChange: string | null };
+    /** The project's registered tools. The UI renders tool results from this, never from a known shape. */
+    tools: WorkspaceTool[];
+  };
   env: {
     db: "postgres" | "pglite";
     mode: "fixture" | "live";
@@ -221,6 +235,9 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
 
   const changeStatus = new Map(changeRows.map((c) => [c.id, c.status]));
   const proposer = proposerConfig();
+  // Example requests and placeholder copy are the project's, not the engine's.
+  const runtime = getRuntime();
+  const ruleChanges = runtime.suggestedRuleChanges?.(proposer.mode) ?? {};
   const handoffTargets = new Set<string>();
 
   const workspaceAgents: WorkspaceAgent[] = agentRows.map((a) => {
@@ -260,10 +277,23 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
   workspaceAgents.forEach((a) => (a.entry = !handoffTargets.has(a.key)));
 
   return {
-    project: { id: project.id, name: project.name, slug: project.slug },
+    project: {
+      id: project.id,
+      name: project.name,
+      slug: project.slug,
+      placeholders: {
+        changeRequest: runtime.placeholders?.changeRequest ?? null,
+        ruleChange: runtime.placeholders?.ruleChange ?? null,
+      },
+      tools: runtime.tools.names.map((name) => ({
+        name,
+        description: runtime.tools.descriptions[name],
+        resultSummary: runtime.tools.resultSummaries[name] ?? null,
+      })),
+    },
     env: { db: dbKind, ...getModes(), proposer, github: githubStatus(), problems: configReport().problems },
     busy: busyJob(),
-    suggestedIntents: suggestedIntents(proposer.mode),
+    suggestedIntents: runtime.suggestedIntents?.(proposer.mode) ?? [],
     agents: workspaceAgents,
     scenarios: scenarioRows.map((s) => ({
       id: s.id,
@@ -294,7 +324,7 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
             createdAt: v.createdAt.toISOString(),
           }),
         ),
-      suggestedRuleChanges: proposer.mode === "fixture" ? (FIXTURE_RULE_CHANGES[s.key] ?? []) : [],
+      suggestedRuleChanges: ruleChanges[s.key] ?? [],
     })),
     changes: changeRows.map((c) => ({
       id: c.id,

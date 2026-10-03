@@ -3,6 +3,7 @@ import { loadBlockedChangeContext, verifyChange, type VerifyOptions } from "@/ch
 import type { Db } from "@/db/client";
 import { changes, scenarios, scenarioVersions, type ScenarioProposal } from "@/db/schema";
 import type { VersionSet } from "@/domain/schemas";
+import type { ToolRegistry } from "@/runtime/tool-registry";
 import { emit } from "@/events";
 import { checkStructure } from "@/verify/structural";
 import type { ScenarioContent } from "./proposer";
@@ -80,7 +81,7 @@ export async function proposeScenarioRevision(
  * doesn't fit the agents it will judge (the live ones, and the blocked change's if it came from one).
  * Returns the blocked change to re-verify, if any.
  */
-export async function applyScenarioRevision(db: Db, revisionId: string) {
+export async function applyScenarioRevision(db: Db, revisionId: string, tools: ToolRegistry) {
   const { revision, scenario } = await getRevision(db, revisionId);
   if (revision.appliedAt) throw new RevisionError("This revision has already been applied.");
   if (revision.discardedAt) throw new RevisionError("This revision was discarded.");
@@ -97,7 +98,7 @@ export async function applyScenarioRevision(db: Db, revisionId: string) {
   const systems: [string, VersionSet][] = [["the live agents", await loadCurrentVersions(db, scenario.projectId)]];
   if (reverify) systems.push(["the blocked change", (await loadBlockedChangeContext(db, reverify.id)).blocked]);
   for (const [label, versions] of systems) {
-    const problems = checkStructure(versions, rules).filter((c) => !c.ok);
+    const problems = checkStructure(versions, rules, tools).filter((c) => !c.ok);
     if (problems.length) {
       throw new RevisionError(`The new rule doesn't fit ${label}: ${problems.map((c) => c.message).join("; ")}`);
     }

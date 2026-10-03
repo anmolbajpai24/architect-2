@@ -59,6 +59,17 @@ export type ToolAssertion = z.infer<typeof ToolAssertion>;
 export type OutputAssertion = z.infer<typeof OutputAssertion>;
 export type JudgeAssertion = z.infer<typeof JudgeAssertion>;
 
+/**
+ * How to summarize a tool's result for a human. Declarative on purpose: it is part of a project's tool metadata
+ * and has to reach the browser, so it cannot be a function.
+ */
+export type ToolResultSummary = {
+  /** Dot path to the list of items in the result, e.g. "items". */
+  itemsPath: string;
+  /** Fields that label one item, first present one wins, e.g. ["sku", "name"]. */
+  labelFields: string[];
+};
+
 export const ScenarioInput = z.object({ message: z.string().min(1) });
 export type ScenarioInput = z.infer<typeof ScenarioInput>;
 

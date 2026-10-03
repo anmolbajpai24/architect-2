@@ -5,9 +5,9 @@ import { ProposalError, proposerConfig, resolveProposerModel, type ProposerConfi
 import type { ScenarioProposal } from "@/db/schema";
 import { describeAssertion } from "@/domain/format";
 import { Assertion, Operator, type ScenarioInput, type ScenarioResult, type VersionSet } from "@/domain/schemas";
-import { TOOL_DESCRIPTIONS, TOOL_INPUT_SCHEMAS, TOOL_NAMES, TOOL_RESULT_SHAPES } from "@/runtime/tools";
+import type { ProjectRuntime } from "@/projects/types";
+import type { ToolRegistry } from "@/runtime/tool-registry";
 import { checkStructure } from "@/verify/structural";
-import { createFixtureScenarioProposerModel } from "./fixture-proposer";
 
 /**
  * Architect's Scenario proposer, used for "Change the rule". It revises a Scenario (the requirement), never an
@@ -23,12 +23,14 @@ export type CurrentScenario = ScenarioContent & { key: string; version: number }
 
 // ---- Output contract -------------------------------------------------------------------------------------
 
-function revisionSchema(agentKeys: [string, ...string[]]) {
+function revisionSchema(agentKeys: [string, ...string[]], tools: ToolRegistry) {
   const AgentKey = z.enum(agentKeys);
+  // Runtime value: a project registers its own tools. Unknown names are caught by structural verification.
+  const ToolName = tools.names.length > 0 ? z.enum(tools.names as [string, ...string[]]) : z.string();
   const AssertionItem = z.object({
     type: z.enum(["tool", "output", "judge"]),
     agent: AgentKey.nullable().describe("output/judge: the agent whose output is checked. tool: only count calls by this agent, or null for any."),
-    tool: z.enum(TOOL_NAMES).nullable().describe("tool assertions only; null otherwise."),
+    tool: ToolName.nullable().describe("tool assertions only; null otherwise."),
     path: z.string().nullable().describe("output/tool assertions: see the vocabulary. null for judge."),
     op: Operator.nullable().describe("output/tool assertions; null for judge."),
     value: z
@@ -50,7 +52,7 @@ function revisionSchema(agentKeys: [string, ...string[]]) {
       .object({
         name: z.string(),
         intent: z.string().describe("The requirement in plain language, as the owner would state it."),
-        message: z.string().describe("The customer message the scenario sends."),
+        message: z.string().describe("The input message the scenario sends."),
         assertions: z.array(AssertionItem),
       })
       .nullable(),
@@ -126,13 +128,13 @@ function describeAgents(versions: VersionSet): string {
   );
 }
 
-function describeTools(): string {
+function describeTools(tools: ToolRegistry): string {
   return JSON.stringify(
-    TOOL_NAMES.map((t) => ({
+    tools.names.map((t) => ({
       name: t,
-      description: TOOL_DESCRIPTIONS[t],
-      input: TOOL_INPUT_SCHEMAS[t],
-      result: TOOL_RESULT_SHAPES[t],
+      description: tools.descriptions[t],
+      input: tools.inputSchemas[t],
+      result: tools.resultShapes[t],
     })),
     null,
     2,
@@ -146,7 +148,7 @@ function describeScenario(s: CurrentScenario): string {
       version: s.version,
       name: s.name,
       intent: s.intent,
-      customer_message: s.input.message,
+      input_message: s.input.message,
       assertions: s.assertions.map((a) => ({ ...a, reads_as: describeAssertion(a) })),
     },
     null,
@@ -174,7 +176,7 @@ Principles:
 - Encode the new requirement faithfully. Change only what the new requirement changes and keep every other assertion as it is.
 - You are revising the rule, not the agents. Don't try to make any particular agent version pass; the revised rule is verified independently afterwards.
 - Use only the assertion vocabulary below, with real agent output fields, tool input fields and tool result fields.
-- Keep the customer message unless the new requirement is about a different customer request.
+- Keep the input message unless the new requirement is about a different request.
 - If the new requirement can't be represented with this vocabulary, set representable to false and scenario to null, and explain why in rationale. If you can only approximate it, do so and say exactly what is approximated.
 
 ${VOCABULARY}`;
@@ -187,12 +189,21 @@ export async function draftScenarioRevision(input: {
   scenario: CurrentScenario;
   request: string;
   versions: VersionSet;
+  runtime: ProjectRuntime;
   failure?: ScenarioResult;
   config?: ProposerConfig;
 }): Promise<ScenarioDraft> {
   const config = input.config ?? proposerConfig();
   const agentKeys = Object.keys(input.versions) as [string, ...string[]];
-  const model = resolveProposerModel(config, () => createFixtureScenarioProposerModel());
+  const model = resolveProposerModel(config, () => {
+    const fixture = input.runtime.fixtureScenarioProposer;
+    if (!fixture) {
+      throw new ProposalError(
+        "Demo mode can't draft rule changes for this project: it has no recorded offline proposer. Run it in Live mode instead.",
+      );
+    }
+    return fixture();
+  });
   const prompt = `<scenario>
 ${describeScenario(input.scenario)}
 </scenario>
@@ -206,7 +217,7 @@ ${describeAgents(input.versions)}
 </agents>
 
 <tools>
-${describeTools()}
+${describeTools(input.runtime.tools)}
 </tools>
 
 <new_requirement>
@@ -219,7 +230,7 @@ ${input.request}
       model,
       instructions: INSTRUCTIONS,
       prompt,
-      output: Output.object({ schema: revisionSchema(agentKeys) }),
+      output: Output.object({ schema: revisionSchema(agentKeys, input.runtime.tools) }),
     });
     raw = output;
   } catch (err) {
@@ -242,7 +253,11 @@ ${input.request}
     assertions,
   };
 
-  const structural = checkStructure(input.versions, [{ key: input.scenario.key, assertions }]).filter((c) => !c.ok);
+  const structural = checkStructure(
+    input.versions,
+    [{ key: input.scenario.key, assertions }],
+    input.runtime.tools,
+  ).filter((c) => !c.ok);
   if (structural.length) {
     throw new ProposalError(`The proposed rule doesn't fit the current agents: ${structural.map((c) => c.message).join("; ")}`);
   }

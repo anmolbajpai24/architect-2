@@ -4,10 +4,10 @@ import type { ChangeProposal } from "@/db/schema";
 import { describeAssertion } from "@/domain/format";
 import type { Assertion, ScenarioResult, VersionSet } from "@/domain/schemas";
 import { hasCredentials, resolveModel } from "@/runtime/models";
+import type { ProjectRuntime } from "@/projects/types";
 import { entryAgentKey } from "@/runtime/run-system";
-import { TOOL_DESCRIPTIONS, TOOL_NAMES } from "@/runtime/tools";
+import type { ToolRegistry } from "@/runtime/tool-registry";
 import type { AgentEdit } from "./change";
-import { createFixtureProposerModel, FIXTURE_INTENTS } from "./fixture-proposer";
 import { serverEnv } from "@/server/env";
 
 /**
@@ -35,19 +35,17 @@ export function proposerConfig(): ProposerConfig {
   return { mode, model };
 }
 
-export function suggestedIntents(mode: ProposerMode): string[] {
-  return mode === "fixture"
-    ? FIXTURE_INTENTS
-    : [
-        ...FIXTURE_INTENTS,
-        "Keep the Store Advisor's replies under 40 words.",
-        "Have the Needs Analyst treat “light” as 1.3 kg or less.",
-      ];
-}
-
 // ---- Output contract -------------------------------------------------------------------------------------
 
-function proposalSchema(agentKeys: [string, ...string[]]) {
+/**
+ * Tool names are a runtime value (a project registers its own tools), so the enum is built per call.
+ * With no tools registered the field falls back to a string; structural verification rejects unknown names.
+ */
+function toolNameSchema(tools: ToolRegistry) {
+  return tools.names.length > 0 ? z.enum(tools.names as [string, ...string[]]) : z.string();
+}
+
+function proposalSchema(agentKeys: [string, ...string[]], tools: ToolRegistry) {
   const AgentKey = z.enum(agentKeys);
   return z.object({
     rationale: z
@@ -61,7 +59,7 @@ function proposalSchema(agentKeys: [string, ...string[]]) {
           .nullable()
           .describe("The agent's complete new instructions (they replace the old ones entirely), or null to keep them."),
         role: z.string().nullable().describe("New one-line role description, or null to keep it."),
-        tools: z.array(z.enum(TOOL_NAMES)).nullable().describe("Complete new tool list, or null to keep it."),
+        tools: z.array(toolNameSchema(tools)).nullable().describe("Complete new tool list, or null to keep it."),
         handoffs: z
           .array(AgentKey)
           .nullable()
@@ -115,8 +113,9 @@ function describeAgents(versions: VersionSet, keys = Object.keys(versions)): str
   );
 }
 
-function describeTools(): string {
-  return TOOL_NAMES.map((t) => `- ${t}: ${TOOL_DESCRIPTIONS[t]}`).join("\n");
+function describeTools(tools: ToolRegistry): string {
+  if (tools.names.length === 0) return "(this project registers no tools)";
+  return tools.names.map((t) => `- ${t}: ${tools.descriptions[t]}`).join("\n");
 }
 
 const RULES = `Rules:
@@ -143,12 +142,21 @@ export function resolveProposerModel(config: ProposerConfig, fixture: () => Lang
 async function propose(
   kind: "draft" | "fix",
   config: ProposerConfig,
+  runtime: ProjectRuntime,
   versions: VersionSet,
   instructions: string,
   prompt: string,
 ): Promise<Draft> {
   const agentKeys = Object.keys(versions) as [string, ...string[]];
-  const model = resolveProposerModel(config, () => createFixtureProposerModel(kind));
+  const model = resolveProposerModel(config, () => {
+    const fixture = runtime.fixtureProposer;
+    if (!fixture) {
+      throw new ProposalError(
+        "Demo mode can't draft changes for this project: it has no recorded offline proposer. Run it in Live mode instead.",
+      );
+    }
+    return fixture(kind);
+  });
 
   let raw: RawProposal;
   try {
@@ -156,7 +164,7 @@ async function propose(
       model,
       instructions,
       prompt,
-      output: Output.object({ schema: proposalSchema(agentKeys) }),
+      output: Output.object({ schema: proposalSchema(agentKeys, runtime.tools) }),
     });
     raw = output;
   } catch (err) {
@@ -174,7 +182,12 @@ async function propose(
 }
 
 /** Drafts edits for a new request. The proposer sees the live configuration, not the scenarios: those verify it. */
-export async function draftChange(input: { intent: string; versions: VersionSet; config?: ProposerConfig }): Promise<Draft> {
+export async function draftChange(input: {
+  intent: string;
+  versions: VersionSet;
+  runtime: ProjectRuntime;
+  config?: ProposerConfig;
+}): Promise<Draft> {
   const instructions = `You are Architect. You change the configuration of a multi-agent application so it does what its owner asks.
 You get the current configuration of every agent, the tools available, and the owner's request. Respond with the smallest set of edits that carries out the request.
 
@@ -184,13 +197,13 @@ ${describeAgents(input.versions)}
 </agents>
 
 <available_tools>
-${describeTools()}
+${describeTools(input.runtime.tools)}
 </available_tools>
 
 <request>
 ${input.intent}
 </request>`;
-  return propose("draft", input.config ?? proposerConfig(), input.versions, instructions, prompt);
+  return propose("draft", input.config ?? proposerConfig(), input.runtime, input.versions, instructions, prompt);
 }
 
 /**
@@ -204,6 +217,7 @@ export async function draftFix(input: {
   editedAgents: string[];
   scenarios: { key: string; name: string; intent: string; input: { message: string }; assertions: Assertion[] }[];
   results: ScenarioResult[];
+  runtime: ProjectRuntime;
   config?: ProposerConfig;
 }): Promise<Draft> {
   const entry = entryAgentKey(input.live);
@@ -217,7 +231,7 @@ export async function draftFix(input: {
       const finalOutput = r.trace.agents[entry]?.output;
       return [
         `Scenario "${r.name}" protects: ${scenario?.intent ?? "(unknown)"}`,
-        `  Customer message: ${scenario?.input.message ?? "(unknown)"}`,
+        `  Input message: ${scenario?.input.message ?? "(unknown)"}`,
         ...failed,
         `  Final output of ${entry}: ${JSON.stringify(finalOutput ?? null)}`,
       ].join("\n");
@@ -246,11 +260,11 @@ ${failures || "(no failure details recorded)"}
 </why_it_was_blocked>
 
 <available_tools>
-${describeTools()}
+${describeTools(input.runtime.tools)}
 </available_tools>
 
 <original_request>
 ${input.intent}
 </original_request>`;
-  return propose("fix", input.config ?? proposerConfig(), input.live, instructions, prompt);
+  return propose("fix", input.config ?? proposerConfig(), input.runtime, input.live, instructions, prompt);
 }

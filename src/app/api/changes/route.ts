@@ -3,8 +3,8 @@ import { proposeChange, verifyChange } from "@/changes/change";
 import { draftChange, ProposalError, proposerConfig, type Draft } from "@/changes/proposer";
 import { emit } from "@/events";
 import { loadCurrentVersions } from "@/scenarios/runner";
-import { liveModelProblem } from "@/server/config";
-import { claimBusy, getDb, getModes, getProjectId, startJob } from "@/server/context";
+import { agentRuntimeProblem } from "@/server/config";
+import { claimBusy, getDb, getProjectId, getRunOptions, getRuntime, startJob } from "@/server/context";
 import { busyResponse, errorResponse } from "@/server/responses";
 
 const Body = z.object({ intent: z.string().trim().min(1).max(2000) });
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return errorResponse("Describe the change you want.", 400);
   const { intent } = parsed.data;
 
-  const problem = liveModelProblem();
+  const problem = agentRuntimeProblem();
   if (problem) return errorResponse(problem, 503);
 
   const release = claimBusy("Drafting change");
@@ -33,7 +33,12 @@ export async function POST(req: Request) {
   let draft: Draft;
   try {
     await emit(db, { projectId, type: "change.drafting", payload: { intent, mode: config.mode, model: config.model } });
-    draft = await draftChange({ intent, versions: await loadCurrentVersions(db, projectId), config });
+    draft = await draftChange({
+      intent,
+      versions: await loadCurrentVersions(db, projectId),
+      runtime: getRuntime(),
+      config,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await emit(db, { projectId, type: "change.draft_failed", payload: { intent, message } });
@@ -43,6 +48,6 @@ export async function POST(req: Request) {
   }
 
   const change = await proposeChange(db, { projectId, intent, edits: draft.edits, proposal: draft.proposal });
-  startJob(db, projectId, "Verifying change", () => verifyChange(db, change.id, getModes()));
+  startJob(db, projectId, "Verifying change", () => verifyChange(db, change.id, getRunOptions()));
   return Response.json({ changeId: change.id }, { status: 202 });
 }

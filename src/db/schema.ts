@@ -3,6 +3,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   serial,
   text,
@@ -210,19 +211,30 @@ export const events = pgTable("events", {
   createdAt: createdAt(),
 });
 
-/** Demo application data: the laptop store's catalog. */
-export const catalogItems = pgTable("catalog_items", {
-  sku: text("sku").primaryKey(),
-  name: text("name").notNull(),
-  priceUsd: integer("price_usd").notNull(),
-  cpu: text("cpu").notNull(),
-  ramGb: integer("ram_gb").notNull(),
-  storageGb: integer("storage_gb").notNull(),
-  gpu: text("gpu").notNull(),
-  dedicatedGpu: boolean("dedicated_gpu").notNull(),
-  weightKg: real("weight_kg").notNull(),
-  screenIn: real("screen_in").notNull(),
-  batteryHours: integer("battery_hours").notNull(),
-  useCases: jsonb("use_cases").$type<string[]>().notNull(),
-  inStock: boolean("in_stock").notNull().default(true),
-});
+/**
+ * Application data belonging to a project. The columns are the Laptop Advisor demo's product catalog: this is the
+ * one table in the schema that is shaped by an application rather than by Architect's own domain. It is owned by a
+ * project so that a second project can neither read nor overwrite this one's catalog.
+ */
+export const catalogItems = pgTable(
+  "catalog_items",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    sku: text("sku").notNull(),
+    name: text("name").notNull(),
+    priceUsd: integer("price_usd").notNull(),
+    cpu: text("cpu").notNull(),
+    ramGb: integer("ram_gb").notNull(),
+    storageGb: integer("storage_gb").notNull(),
+    gpu: text("gpu").notNull(),
+    dedicatedGpu: boolean("dedicated_gpu").notNull(),
+    weightKg: real("weight_kg").notNull(),
+    screenIn: real("screen_in").notNull(),
+    batteryHours: integer("battery_hours").notNull(),
+    useCases: jsonb("use_cases").$type<string[]>().notNull(),
+    inStock: boolean("in_stock").notNull().default(true),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.sku] })],
+);

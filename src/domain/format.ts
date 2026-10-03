@@ -1,4 +1,4 @@
-import type { Assertion } from "./schemas";
+import type { Assertion, ToolResultSummary } from "./schemas";
 
 /** Pure formatting helpers, safe to import from client components. */
 
@@ -60,4 +60,54 @@ export function lineDiff(before: string, after: string): { removed: string[]; ad
   const a = lines(before);
   const b = lines(after);
   return { removed: a.filter((l) => !b.includes(l)), added: b.filter((l) => !a.includes(l)) };
+}
+
+function at(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((cur, key) => {
+    if (cur == null || typeof cur !== "object") return undefined;
+    return (cur as Record<string, unknown>)[key];
+  }, value);
+}
+
+/** The first array found among a value's own fields, for results that declare no summary. */
+function firstList(value: unknown): unknown[] | undefined {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return undefined;
+  return Object.values(value as Record<string, unknown>).find((v): v is unknown[] => Array.isArray(v));
+}
+
+function label(item: unknown, labelFields: string[]): string | undefined {
+  if (typeof item === "string" || typeof item === "number") return String(item);
+  if (!item || typeof item !== "object") return undefined;
+  const row = item as Record<string, unknown>;
+  const fields = labelFields.length > 0 ? labelFields : Object.keys(row);
+  for (const field of fields) {
+    const v = row[field];
+    if (typeof v === "string" && v.trim() !== "") return v;
+    if (typeof v === "number") return String(v);
+  }
+  return undefined;
+}
+
+/**
+ * One line describing what a tool returned. Uses the tool's declared summary when the project provides one
+ * (ToolDefinition.resultSummary), otherwise summarizes the first list it finds, and falls back to compact JSON
+ * for results that are not list-shaped. No tool, field or domain is named here.
+ */
+export function summarizeToolResult(result: unknown, summary?: ToolResultSummary | null, max = 3): string {
+  const items = summary ? at(result, summary.itemsPath) : firstList(result);
+  const list = Array.isArray(items) ? items : undefined;
+  if (!list) {
+    if (result == null) return "no result";
+    const json = JSON.stringify(result);
+    return json === undefined ? "no result" : json.length > 120 ? `${json.slice(0, 117)}…` : json;
+  }
+  const count = `${list.length} result${list.length === 1 ? "" : "s"}`;
+  const labels = list
+    .slice(0, max)
+    .map((item) => label(item, summary?.labelFields ?? []))
+    .filter((l): l is string => Boolean(l));
+  if (labels.length === 0) return count;
+  const more = list.length > labels.length ? ", …" : "";
+  return `${count}: ${labels.join(", ")}${more}`;
 }

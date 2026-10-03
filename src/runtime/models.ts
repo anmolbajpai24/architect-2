@@ -2,7 +2,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import { apiKeyForModel, serverEnv } from "@/server/env";
-import { createFixtureModel } from "./fixture-model";
+import { createFixtureModel, type SimulatorProvider } from "./fixture-model";
 
 /** fixture: deterministic stand-in models (default). live: the provider model named in the AgentVersion config. */
 export type ModelMode = "fixture" | "live";
@@ -19,8 +19,17 @@ export function hasCredentials(spec: string): boolean {
   return Boolean(apiKeyForModel(spec));
 }
 
-export function agentModel(agentKey: string, spec: string, mode: ModelMode): LanguageModel {
-  return mode === "fixture" ? createFixtureModel(agentKey) : resolveModel(spec);
+/**
+ * The model one agent runs on. In fixture mode that is the project's deterministic simulator; without one,
+ * createFixtureModel refuses rather than inventing behavior.
+ */
+export function agentModel(
+  agentKey: string,
+  spec: string,
+  mode: ModelMode,
+  simulator: SimulatorProvider | undefined,
+): LanguageModel {
+  return mode === "fixture" ? createFixtureModel(agentKey, simulator) : resolveModel(spec);
 }
 
 export function judgeModelSpec(): string {

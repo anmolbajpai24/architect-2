@@ -1,6 +1,13 @@
 import { GitPullRequestArrow, History, MessageSquare, ShieldCheck, Sparkles, Store, Wrench } from "lucide-react";
+import { summarizeToolResult } from "@/domain/format";
 import type { ScenarioResult } from "@/domain/schemas";
-import type { ScenarioVersionStatus, WorkspaceAgent, WorkspaceChange, WorkspaceScenario } from "@/server/workspace";
+import type {
+  ScenarioVersionStatus,
+  WorkspaceAgent,
+  WorkspaceChange,
+  WorkspaceScenario,
+  WorkspaceTool,
+} from "@/server/workspace";
 import { cn } from "@/lib/utils";
 import { AssertionRow } from "./assertion-row";
 import { Disclosure } from "./disclosure";
@@ -38,6 +45,7 @@ export function ScenarioInspector({
   runLabel,
   agents,
   changes,
+  tools,
   onOpenChange,
 }: {
   scenario: WorkspaceScenario;
@@ -46,6 +54,8 @@ export function ScenarioInspector({
   runLabel: string;
   agents: WorkspaceAgent[];
   changes: WorkspaceChange[];
+  /** The project's registered tools, used to summarize tool results without assuming any result shape. */
+  tools: WorkspaceTool[];
   onOpenChange: (id: string) => void;
 }) {
   // A result only lines up with these assertions if it was judged against this version of the rule.
@@ -143,20 +153,16 @@ export function ScenarioInspector({
                     <span className="text-muted-foreground transition-transform group-open:rotate-90">›</span>
                   </summary>
                   <div className="space-y-2 border-t px-3 py-2.5">
-                    {t.toolCalls.map((c, i) => {
-                      const items = (c.result as { items?: { sku: string }[] } | null)?.items ?? [];
-                      return (
-                        <div key={i} className="rounded-md bg-violet-50/60 p-2 font-mono text-[11px] leading-relaxed">
-                          <div className="text-violet-800">
-                            {c.tool}({JSON.stringify(c.args)})
-                          </div>
-                          <div className="text-muted-foreground">
-                            → {items.length} result{items.length === 1 ? "" : "s"}
-                            {items.length > 0 && `: ${items.map((x) => x.sku).join(", ")}`}
-                          </div>
+                    {t.toolCalls.map((c, i) => (
+                      <div key={i} className="rounded-md bg-violet-50/60 p-2 font-mono text-[11px] leading-relaxed">
+                        <div className="text-violet-800">
+                          {c.tool}({JSON.stringify(c.args)})
                         </div>
-                      );
-                    })}
+                        <div className="text-muted-foreground">
+                          → {summarizeToolResult(c.result, tools.find((x) => x.name === c.tool)?.resultSummary)}
+                        </div>
+                      </div>
+                    ))}
                     <JsonBlock value={t.output} />
                   </div>
                 </details>

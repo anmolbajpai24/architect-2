@@ -1,11 +1,6 @@
 import type { StructuralCheck } from "@/db/schema";
 import { AgentConfig, type Assertion, type VersionSet } from "@/domain/schemas";
-import { SearchCatalogInput, TOOL_NAMES } from "@/runtime/tools";
-
-/** Top-level input fields per registered tool, for validating "args.*" assertion paths. */
-const TOOL_INPUT_FIELDS: Record<string, string[]> = {
-  search_catalog: Object.keys(SearchCatalogInput.shape),
-};
+import type { ToolRegistry } from "@/runtime/tool-registry";
 
 /** Whether a dot path can resolve inside a JSON Schema (objects via properties, arrays via numeric index). */
 export function schemaHasPath(schema: any, path: string): boolean {
@@ -27,7 +22,12 @@ function check(name: string, problems: string[], okMessage: string): StructuralC
  * Structural verification: is the agent system well-formed, and do the scenarios still point at things that exist?
  * It says nothing about behavior; that is what running the scenarios is for.
  */
-export function checkStructure(versions: VersionSet, scenarios: { key: string; assertions: Assertion[] }[]): StructuralCheck[] {
+export function checkStructure(
+  versions: VersionSet,
+  scenarios: { key: string; assertions: Assertion[] }[],
+  /** The project's registered tools. Tool names and "args.<field>" paths are validated against it. */
+  tools: ToolRegistry,
+): StructuralCheck[] {
   const keys = Object.keys(versions);
 
   const schemaProblems = keys.flatMap((k) => {
@@ -37,7 +37,7 @@ export function checkStructure(versions: VersionSet, scenarios: { key: string; a
 
   const toolProblems = keys.flatMap((k) =>
     versions[k].config.tools
-      .filter((t) => !(TOOL_NAMES as readonly string[]).includes(t))
+      .filter((t) => !tools.has(t))
       .map((t) => `${k} uses unknown tool "${t}"`),
   );
 
@@ -68,7 +68,7 @@ export function checkStructure(versions: VersionSet, scenarios: { key: string; a
         if (users.length === 0) return [`${where}: no agent has tool "${a.tool}"`];
         if (a.agent && !users.includes(a.agent)) return [`${where}: ${a.agent} does not have tool "${a.tool}"`];
         const [source, field] = a.path.split(".");
-        if (source === "args" && !TOOL_INPUT_FIELDS[a.tool]?.includes(field))
+        if (source === "args" && !tools.inputFields[a.tool]?.includes(field))
           return [`${where}: ${a.tool} has no input "${field}"`];
         return [];
       }

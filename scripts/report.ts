@@ -44,10 +44,21 @@ export function printRun(run: { id: string; status: string; modelMode: string; r
       console.log(`      ${mark[a.status]} ${describeAssertion(a.assertion)}${detail}`);
     }
     if (r.status !== "pass") {
-      const reply = (r.trace.agents["store-advisor"]?.output as { reply?: string } | undefined)?.reply;
+      const reply = finalReply(r.trace);
       if (reply) console.log(`      ${c.dim(`reply: "${reply}"`)}`);
     }
   }
+}
+
+/**
+ * What the end user would have seen: the first text field of the final agent's output. The entry agent runs last,
+ * so it is the last key in the trace. No agent or field is named, so this works for any project.
+ */
+function finalReply(trace: ScenarioResult["trace"]): string | undefined {
+  const output = Object.values(trace.agents).at(-1)?.output;
+  if (!output || typeof output !== "object") return undefined;
+  const text = Object.values(output as Record<string, unknown>).find((v) => typeof v === "string" && v.trim() !== "");
+  return typeof text === "string" ? text : undefined;
 }
 
 export function printStructural(checks: StructuralCheck[]) {

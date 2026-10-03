@@ -1,6 +1,7 @@
 import type { catalogItems } from "@/db/schema";
 
-type CatalogItem = typeof catalogItems.$inferInsert;
+/** A catalog row without its owning project, which the seeder supplies. */
+type CatalogItem = Omit<typeof catalogItems.$inferInsert, "projectId">;
 
 /** Fictional laptop store catalog. Note: no dedicated-GPU laptop costs under $899. */
 export const catalog: CatalogItem[] = [

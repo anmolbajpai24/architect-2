@@ -9,9 +9,10 @@ import { applyChange, keepRuleAndFix, loadBlockedChangeContext, proposeChange, v
 import { draftChange, draftFix, proposerConfig, type ProposerConfig } from "@/changes/proposer";
 import { openDb, type Db } from "@/db/client";
 import { agents, agentVersions, events } from "@/db/schema";
+import { laptopAdvisor } from "@/demo/project";
 import { REGRESSION_INTENT } from "@/fixtures/regression";
+import { toProjectRuntime } from "@/projects/registry";
 import { loadCurrentVersions, runScenarios } from "@/scenarios/runner";
-import { seedDemo } from "@/seed";
 import { c, heading, parseFlags, printExplanation, printRun, printStructural } from "./report";
 
 const flags = parseFlags(process.argv.slice(2));
@@ -32,8 +33,9 @@ async function currentVersionNumber(db: Db, projectId: string, key: string) {
 
 const { db, kind, close } = await openDb();
 try {
-  const projectId = await seedDemo(db, { reset: true });
-  const verifyOpts = { mode: flags.mode, judge: flags.judge };
+  const projectId = await laptopAdvisor.seed(db, { reset: true });
+  const runtime = toProjectRuntime(laptopAdvisor);
+  const verifyOpts = { mode: flags.mode, judge: flags.judge, runtime };
   // The proposer follows --live too: fixture replays the recorded demo edits through the same code path.
   const proposer: ProposerConfig = { mode: flags.mode, model: proposerConfig().model };
 
@@ -48,7 +50,12 @@ try {
   expect(baseline.status === "passed", "all scenarios pass on Recommendation Agent v1");
 
   heading(`2. User asks: "${REGRESSION_INTENT}"`);
-  const draft = await draftChange({ intent: REGRESSION_INTENT, versions: await loadCurrentVersions(db, projectId), config: proposer });
+  const draft = await draftChange({
+    intent: REGRESSION_INTENT,
+    versions: await loadCurrentVersions(db, projectId),
+    runtime,
+    config: proposer,
+  });
   console.log(c.dim(`Architect (${draft.proposal.model}): ${draft.proposal.rationale}`));
   const change = await proposeChange(db, { projectId, intent: REGRESSION_INTENT, edits: draft.edits, proposal: draft.proposal });
   console.log(`Change ${change.id.slice(0, 8)} proposes a new Recommendation Agent version (not live yet).`);
@@ -76,6 +83,7 @@ try {
     editedAgents: Object.keys(change.proposedVersionIds),
     scenarios: ctx.scenarios,
     results: ctx.results,
+    runtime,
     config: proposer,
   });
   const fix = await keepRuleAndFix(db, change.id, fixDraft.edits, fixDraft.proposal);
@@ -106,7 +114,7 @@ try {
 
   const [{ n }] = await db.select({ n: count() }).from(events).where(eq(events.projectId, projectId));
   heading("Result");
-  console.log(c.dim(`${n} events recorded for project laptop-advisor.`));
+  console.log(c.dim(`${n} events recorded for project ${laptopAdvisor.slug}.`));
   if (problems.length) {
     console.log(c.red(`Demo did NOT reproduce (${problems.length} unexpected step(s)).`));
     process.exitCode = 1;

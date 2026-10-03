@@ -26,12 +26,14 @@ export function agentName(snapshot: WorkspaceSnapshot, key: string) {
 
 function Composer({
   suggestions,
+  placeholder,
   disabled,
   drafting,
   proposerLabel,
   onPropose,
 }: {
   suggestions: string[];
+  placeholder: string | null;
   disabled: boolean;
   drafting: boolean;
   proposerLabel: string;
@@ -57,7 +59,7 @@ function Composer({
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
         }}
-        placeholder="e.g. Make the Recommendation Agent more confident."
+        placeholder={placeholder ?? "e.g. Make one of the agents more concise."}
         className="mt-2.5 min-h-14 resize-none border-0 p-0 text-sm shadow-none focus-visible:ring-0"
       />
       <div className="mt-2 flex items-center justify-between gap-2">
@@ -269,6 +271,7 @@ export function ChangesPanel({
 
       <Composer
         suggestions={snapshot.suggestedIntents}
+        placeholder={snapshot.project.placeholders.changeRequest}
         disabled={busy}
         drafting={drafting}
         proposerLabel={snapshot.env.proposer.mode === "live" ? modelLabel(snapshot.env.proposer.model) : "the recorded demo proposer"}

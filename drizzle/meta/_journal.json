@@ -36,6 +36,13 @@
       "when": 1790991446709,
       "tag": "0004_change_shipments",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791040554772,
+      "tag": "0005_catalog_project_scope",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import type { Db } from "@/db/client";
 import { agents, agentVersions, changes, runs, type ChangeExplanation, type ChangeProposal } from "@/db/schema";
 import type { AgentConfig, ScenarioResult, VersionSet } from "@/domain/schemas";
 import { emit } from "@/events";
+import type { ProjectRuntime } from "@/projects/types";
 import type { ModelMode } from "@/runtime/models";
 import { describeAssertion, type JudgeMode } from "@/scenarios/assertions";
 import { loadCurrentVersions, loadScenarios, runScenarios } from "@/scenarios/runner";
@@ -150,7 +151,7 @@ function explainFailure(
   };
 }
 
-export type VerifyOptions = { mode: ModelMode; judge: JudgeMode };
+export type VerifyOptions = { mode: ModelMode; judge: JudgeMode; runtime: ProjectRuntime };
 
 /** Structural check first; if that passes, run every scenario against the candidate system. */
 export async function verifyChange(db: Db, changeId: string, opts: VerifyOptions) {
@@ -161,7 +162,7 @@ export async function verifyChange(db: Db, changeId: string, opts: VerifyOptions
   const ev = (type: string, payload: Record<string, unknown>) =>
     emit(db, { projectId: change.projectId, changeId, type, payload });
 
-  const structural = checkStructure(candidate, scenarioRows);
+  const structural = checkStructure(candidate, scenarioRows, opts.runtime.tools);
   const structuralOk = structural.every((c) => c.ok);
   await ev("change.structural_checked", { ok: structuralOk, checks: structural });
   if (!structuralOk) {
@@ -180,6 +181,7 @@ export async function verifyChange(db: Db, changeId: string, opts: VerifyOptions
     changeId,
     mode: opts.mode,
     judge: opts.judge,
+    runtime: opts.runtime,
   });
 
   const passed = run.status === "passed";
