@@ -1,4 +1,4 @@
-import { describeAssertion } from "@/domain/format";
+import { describeAssertion, describeAssertionPlainly } from "@/domain/format";
 import type { Assertion, AssertionResult } from "@/domain/schemas";
 import { cn } from "@/lib/utils";
 import { formatValue } from "./format";
@@ -21,10 +21,10 @@ export function AssertionRow({ assertion, result }: { assertion: Assertion; resu
             {assertion.type}
           </span>
           <span className="min-w-0 text-xs leading-snug">
-            {assertion.type === "judge" ? assertion.criterion : (assertion.description ?? describeAssertion(assertion))}
+            {assertion.description ?? describeAssertionPlainly(assertion)}
           </span>
         </div>
-        {assertion.type !== "judge" && assertion.description && (
+        {assertion.type !== "judge" && (
           <div className="mt-1 font-mono text-[11px] text-muted-foreground">{describeAssertion(assertion)}</div>
         )}
         {result && failed && (

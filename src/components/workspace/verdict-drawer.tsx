@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCheck, CornerDownRight, FilePen, GitPullRequest, Hammer, LoaderCircle, Rocket, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCheck, CornerDownRight, GitPullRequest, LoaderCircle, Rocket, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { WorkspaceChange, WorkspaceSnapshot } from "@/server/workspace";
 import { cn } from "@/lib/utils";
 import { AssertionRow } from "./assertion-row";
+import { CustomerImpact, ResolutionFork, VerificationVerdict } from "./behavior-verdict";
 import { agentName, versionNumber } from "./changes-panel";
+import { Disclosure } from "./disclosure";
 import { modelLabel, shortId } from "./format";
 import { InstructionDiff } from "./instruction-diff";
 import { RuleChangePanel } from "./rule-change-panel";
 import { ShipPanel } from "./ship-panel";
-import { Reply } from "./scenario-inspector";
 import { ChangeStatusPill, StatusIcon } from "./status";
 import type { Progress, WorkspaceApi } from "./use-workspace";
 
@@ -216,7 +217,7 @@ function VerdictBody({
               <div className="flex items-center gap-2 text-xs font-medium">
                 Architect
                 <span className="rounded border bg-background px-1.5 font-mono text-[10px] font-normal text-muted-foreground">
-                  {change.proposal.mode === "live" ? modelLabel(change.proposal.model) : "fixture proposer"}
+                  {change.proposal.mode === "live" ? modelLabel(change.proposal.model) : "recorded demo"}
                 </span>
               </div>
               <p className="text-xs leading-relaxed">{change.proposal.rationale}</p>
@@ -240,17 +241,30 @@ function VerdictBody({
         {!change.structural ? (
           <p className="text-xs text-muted-foreground">Checking configuration, tools, handoffs and scenario references…</p>
         ) : (
-          <ul className="space-y-1">
-            {change.structural.map((c) => (
-              <li key={c.check} className="flex items-start gap-2 text-xs">
-                <StatusIcon status={c.ok ? "pass" : "fail"} className="mt-px size-3.5" />
-                <span>
-                  <span className="font-mono">{c.check}</span>
-                  <span className="text-muted-foreground"> · {c.message}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="mb-2 text-xs leading-relaxed text-muted-foreground">
+              {structuralOk
+                ? "The proposed configuration holds together: valid agents, registered tools, resolvable handoffs."
+                : "The proposed configuration doesn't hold together, so it was never run."}
+            </p>
+            <Disclosure
+              label={`${change.structural.length} structural checks`}
+              hint={structuralOk ? "all passing" : `${change.structural.filter((c) => !c.ok).length} failing`}
+              defaultOpen={!structuralOk}
+            >
+              <ul className="space-y-1">
+                {change.structural.map((c) => (
+                  <li key={c.check} className="flex items-start gap-2 text-xs">
+                    <StatusIcon status={c.ok ? "pass" : "fail"} className="mt-px size-3.5" />
+                    <span>
+                      <span className="font-mono">{c.check}</span>
+                      <span className="text-muted-foreground"> · {c.message}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Disclosure>
+          </>
         )}
       </Step>
 
@@ -273,21 +287,10 @@ function VerdictBody({
                     {result && <AssertionCount statuses={result.assertions.map((a) => a.status)} />}
                   </div>
                   {failing && (
-                    <div className="space-y-2 border-t border-rose-200 px-2 py-2">
-                      {s.assertions.map((a, i) =>
-                        result.assertions[i]?.status === "fail" || result.assertions[i]?.status === "error" ? (
-                          <AssertionRow key={i} assertion={a} result={result.assertions[i]} />
-                        ) : null,
+                    <div className="space-y-1 border-t border-rose-200 px-2 py-2">
+                      {result.assertions.map((a, i) =>
+                        a.status === "fail" || a.status === "error" ? <AssertionRow key={i} assertion={a.assertion} result={a} /> : null,
                       )}
-                      {(() => {
-                        const reply = (result.trace.agents["store-advisor"]?.output as { reply?: string } | undefined)?.reply;
-                        return reply ? (
-                          <div className="px-1">
-                            <div className="mb-1 text-[11px] text-muted-foreground">The customer would have heard:</div>
-                            <Reply text={reply} />
-                          </div>
-                        ) : null;
-                      })()}
                     </div>
                   )}
                 </div>
@@ -305,20 +308,25 @@ function VerdictBody({
           </p>
         )}
         {change.status === "structural_failed" && (
-          <Callout tone="bad" icon={ShieldAlert} title="Structurally invalid">
-            The proposed configuration doesn&apos;t hold together, so it was not run against the scenarios.
-          </Callout>
+          <>
+            <VerificationVerdict structuralOk={false} behaviorOk={null} />
+            <Callout tone="bad" icon={ShieldAlert} title="Structurally invalid">
+              The proposed configuration doesn&apos;t hold together, so it was never run against the scenarios. Behavior
+              could not be checked.
+            </Callout>
+          </>
         )}
         {ruleChange && <RuleChangeOutcome change={change} snapshot={snapshot} ruleChange={ruleChange} />}
         {change.status === "behavioral_failed" && change.explanation && (
           <>
-            <Callout
-              tone="bad"
-              icon={ShieldAlert}
-              title={ruleChange ? "Still blocked under the new rule" : "Blocked: this change breaks a protected behavior"}
-            >
-              {change.explanation.summary}
-            </Callout>
+            <VerificationVerdict structuralOk={Boolean(structuralOk)} behaviorOk={false} />
+            <p className="text-xs leading-relaxed">
+              <span className="font-medium">
+                {ruleChange ? "Still blocked under the new rule." : "This change is blocked."}
+              </span>{" "}
+              <span className="text-muted-foreground">{change.explanation.summary}</span>
+            </p>
+            <CustomerImpact failures={failedScenarios} snapshot={snapshot} />
             {change.resolution === "keep_rule_fix" ? (
               <Callout tone="good" icon={CheckCheck} title="You chose: Keep the rule → Fix it">
                 {child ? (
@@ -330,49 +338,25 @@ function VerdictBody({
                 )}
               </Callout>
             ) : (
-              <div className="grid gap-2">
-                <div className="rounded-xl border-2 border-foreground/80 p-3.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Keep the rule</div>
-                  <div className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
-                    <Hammer className="size-4" /> Fix the implementation
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Fix the implementation to satisfy the existing requirement: “{protectedIntent}”. Architect revises the
-                    agent change; the scenario stays as it is.
-                  </p>
-                  <Button
-                    className="mt-3 w-full"
-                    disabled={api.busy}
-                    onClick={async () => {
-                      const res = await api.keepRuleAndFix(change.id);
-                      if (res?.changeId) onOpenChange(res.changeId);
-                    }}
-                  >
-                    Keep the rule → Fix it
-                  </Button>
-                </div>
-                <div className="rounded-xl border-2 border-indigo-300 bg-indigo-50/30 p-3.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">Change the rule</div>
-                  <div className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
-                    <FilePen className="size-4" /> Update the requirement
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Update the requirement because you changed your mind. The scenario gets a new version you review before
-                    it applies; this change&apos;s agents stay exactly as proposed.
-                  </p>
-                  <Button variant="outline" className="mt-3 w-full border-indigo-300" disabled={api.busy} onClick={onChangeRule}>
-                    {pendingDraft ? `Review drafted rule (v${pendingDraft.version})` : "Change the rule…"}
-                  </Button>
-                </div>
-              </div>
+              <ResolutionFork
+                protectedIntent={protectedIntent}
+                pendingDraftVersion={pendingDraft?.version}
+                busy={api.busy}
+                onKeepRule={async () => {
+                  const res = await api.keepRuleAndFix(change.id);
+                  if (res?.changeId) onOpenChange(res.changeId);
+                }}
+                onChangeRule={onChangeRule}
+              />
             )}
           </>
         )}
         {change.status === "verified" && (
           <>
+            <VerificationVerdict structuralOk behaviorOk />
             <Callout tone="good" icon={ShieldCheck} title="Verified: safe to apply">
-              Structurally valid, and {run?.results?.length ?? 0}/{run?.results?.length ?? 0} scenarios pass against the
-              proposed versions. Nothing is live until you apply it.
+              Every one of the {run?.results?.length ?? 0} scenarios passes against the proposed versions. Nothing is live
+              until you apply it.
             </Callout>
             <Button className="w-full" disabled={api.busy} onClick={() => api.applyChange(change.id)}>
               <Rocket data-icon="inline-start" /> Apply to live agents

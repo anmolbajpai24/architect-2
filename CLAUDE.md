@@ -83,6 +83,21 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - UI env: `ARCHITECT_MODEL_MODE=live`, `ARCHITECT_JUDGE=live`. PGlite state is per server process.
 - Pure helpers for client code live in `src/domain/format.ts`; never import AI SDK or DB modules into components.
 
+### UX principles (final pass)
+
+- Every object has two faces: plain language by default, the exact form one click away behind `Disclosure`
+  ("7 checks", "5 structural checks", "Agent traces", "N versions of this rule"). No global developer mode.
+- Configuration and behavior are separate verdicts (`behavior-verdict.tsx`): valid config + broken behavior is the
+  product's point, so a structurally-failed change reports behavior as "Not checked", never as correct or broken.
+- A blocked change leads with what the customer would have heard, then Expected/Actual, then the fork:
+  KEEP THE RULE = "the agent is wrong", CHANGE THE RULE = "the requirement changed".
+- Server/infrastructure state is progressively disclosed: the header shows only "Demo mode"/"Live mode"; storage,
+  proposer, agent runtime, judge and GitHub (with their env var names) live in the Environment popover
+  (`environment.tsx`). Product surfaces never print env vars or shell commands — `friendlyError` in
+  `components/workspace/format.ts` translates configuration limits into "not enabled in Demo mode".
+- The Inspector opens on the project (`project-overview.tsx`), not on an arbitrary scenario; the center column is
+  the workflow when there are no changes and the change workspace once one exists.
+
 ## Scenario revisions ("Change the rule", Phase 4)
 
 - Two resolutions of a blocked Change, kept distinct everywhere (UI, data, events):

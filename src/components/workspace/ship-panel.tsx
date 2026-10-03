@@ -131,9 +131,8 @@ export function ShipPanel({
         )
       ) : (
         <div className="rounded-xl border border-dashed p-3 text-xs leading-relaxed text-muted-foreground">
-          GitHub isn&apos;t connected on this server ({github.problems.join("; ")}). Set <span className="font-mono">ARCHITECT_GITHUB_TOKEN</span>{" "}
-          and <span className="font-mono">ARCHITECT_GITHUB_REPOS</span> in <span className="font-mono">.env</span> and restart. The credential stays
-          on the server.
+          GitHub isn&apos;t connected for this workspace, so a verified change can&apos;t be opened as a pull request yet.
+          Everything else works without it — see Environment in the header for how to connect it.
         </div>
       )}
 

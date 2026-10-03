@@ -170,7 +170,7 @@ export function RuleChangePanel({
                 <div className="flex items-center gap-2 text-xs font-medium">
                   Architect
                   <span className="rounded border bg-background px-1.5 font-mono text-[10px] font-normal text-muted-foreground">
-                    {draft.proposal.mode === "live" ? modelLabel(draft.proposal.model) : "fixture proposer"}
+                    {draft.proposal.mode === "live" ? modelLabel(draft.proposal.model) : "recorded demo"}
                   </span>
                 </div>
                 <p className="text-xs leading-relaxed">{draft.proposal.rationale}</p>

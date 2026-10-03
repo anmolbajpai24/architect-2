@@ -1,39 +1,62 @@
 "use client";
 
 import { useState } from "react";
-import { Boxes, LoaderCircle, MousePointerClick, Play, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Boxes, LoaderCircle, Play, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { WorkspaceSnapshot } from "@/server/workspace";
 import { AgentInspector } from "./agent-inspector";
 import { AgentSystem } from "./agent-system";
 import { ChangesPanel } from "./changes-panel";
-import { modelLabel, shortId } from "./format";
+import { EnvironmentButton } from "./environment";
+import { friendlyError, shortId } from "./format";
+import { ProjectOverview } from "./project-overview";
 import { ScenarioInspector } from "./scenario-inspector";
 import { ScenarioStrip, type StripContext } from "./scenario-strip";
-import { scenarioStatus, streamingProgress, useWorkspace } from "./use-workspace";
+import { protectionSummary, scenarioStatus, streamingProgress, useWorkspace } from "./use-workspace";
 import { VerdictDrawer } from "./verdict-drawer";
 
 type Selection = { kind: "scenario" | "agent"; key: string } | null;
 
-function EnvBadge({ label, hint }: { label: string; hint: string }) {
+function Column({
+  title,
+  action,
+  children,
+  className,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="cursor-default rounded-md border bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-          {label}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-64">{hint}</TooltipContent>
-    </Tooltip>
+    <div className={`flex min-h-0 flex-col ${className ?? ""}`}>
+      <div className="flex items-center gap-2 px-5 pt-4 pb-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
+        {action}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">{children}</div>
+    </div>
   );
 }
 
-function Column({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+/**
+ * Server messages reach the user in product language: a limit of this server's configuration reads as a state of
+ * the product ("not enabled here"), with the specifics kept in the Environment popover.
+ */
+function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  const { title, detail } = friendlyError(message);
   return (
-    <div className={`flex min-h-0 flex-col ${className ?? ""}`}>
-      <div className="px-5 pt-4 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">{children}</div>
+    <div
+      role="alert"
+      className="fixed bottom-4 left-4 z-50 flex max-w-md items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900 shadow-lg"
+    >
+      <div className="flex-1 space-y-0.5 leading-relaxed">
+        <div className="font-medium">{title}</div>
+        {detail && <p className="text-rose-900/70">{detail}</p>}
+      </div>
+      <button type="button" onClick={onDismiss} aria-label="Dismiss" className="text-rose-500 hover:text-rose-700">
+        <X className="size-4" />
+      </button>
     </div>
   );
 }
@@ -41,7 +64,8 @@ function Column({ title, children, className }: { title: string; children: React
 export function Workspace({ initial, initialChangeId = null }: { initial: WorkspaceSnapshot; initialChangeId?: string | null }) {
   const api = useWorkspace(initial);
   const { snapshot, events, progress } = api;
-  const [selection, setSelection] = useState<Selection>({ kind: "scenario", key: initial.scenarios[0]?.key });
+  // Nothing is selected at first: the Inspector opens on the project, not on an arbitrary scenario.
+  const [selection, setSelection] = useState<Selection>(null);
   const [openChangeId, setOpenChangeId] = useState<string | null>(initialChangeId);
 
   const latestRun = snapshot.runs[0];
@@ -58,6 +82,7 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
         ? { tone: "proposed", text: `Showing proposed change #${shortId(contextChange)} · not live` }
         : { tone: "live", text: "Live agents" };
 
+  const protection = protectionSummary(snapshot.scenarios, latestRun, progress);
   const selectedScenario = selection?.kind === "scenario" ? snapshot.scenarios.find((s) => s.key === selection.key) : undefined;
   const selectedAgent = selection?.kind === "agent" ? snapshot.agents.find((a) => a.key === selection.key) : undefined;
 
@@ -78,35 +103,8 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
         </div>
         <span className="text-muted-foreground/50">/</span>
         <span className="text-sm font-medium">{snapshot.project.name}</span>
-        <div className="ml-2 hidden items-center gap-1.5 md:flex">
-          <EnvBadge
-            label={snapshot.env.db === "pglite" ? "pglite" : "supabase"}
-            hint={snapshot.env.db === "pglite" ? "In-process Postgres; data resets when the server restarts. Set DATABASE_URL for Supabase." : "Supabase Postgres via DATABASE_URL."}
-          />
-          <EnvBadge
-            label={`proposer: ${snapshot.env.proposer.mode === "live" ? modelLabel(snapshot.env.proposer.model) : "fixture"}`}
-            hint={
-              snapshot.env.proposer.mode === "live"
-                ? `Architect drafts changes with ${snapshot.env.proposer.model}. Every draft is still verified before it can go live.`
-                : "Offline fixture proposer: replays the recorded edits for the scripted demo request only. Set ANTHROPIC_API_KEY (or ARCHITECT_PROPOSER=live) to draft any change."
-            }
-          />
-          <EnvBadge
-            label={`${snapshot.env.mode} models`}
-            hint={snapshot.env.mode === "fixture" ? "Agents run on the deterministic fixture model so the demo reproduces exactly. Set ARCHITECT_MODEL_MODE=live for real models." : "Agents run on the provider models in their configs."}
-          />
-          <EnvBadge
-            label={snapshot.env.github.configured ? `github: ${snapshot.env.github.repositories.join(", ")}` : "github off"}
-            hint={
-              snapshot.env.github.configured
-                ? "Verified, applied changes can be shipped as pull requests to these repositories. The GitHub credential stays on the server."
-                : `Shipping to GitHub is off: ${snapshot.env.github.problems.join("; ")}. Everything else works without it.`
-            }
-          />
-          <EnvBadge
-            label={`judge ${snapshot.env.judge === "live" ? "on" : "off"}`}
-            hint={snapshot.env.judge === "live" ? "Judge assertions run on JUDGE_MODEL." : "Judge assertions are skipped; tool and output assertions decide pass/fail. Set ARCHITECT_JUDGE=live to enable."}
-          />
+        <div className="ml-2 hidden md:block">
+          <EnvironmentButton env={snapshot.env} />
         </div>
         <div className="ml-auto flex items-center gap-2">
           {api.busyLabel && (
@@ -142,10 +140,11 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
           />
         </Column>
 
-        <Column title="Ask Architect">
+        <Column title={snapshot.changes.length ? "Ask Architect · Changes" : "Ask Architect"}>
           <ChangesPanel
             snapshot={snapshot}
             events={events}
+            protection={protection}
             busy={api.busy}
             drafting={api.busyLabel === "Drafting change"}
             openChangeId={openChangeId}
@@ -154,7 +153,21 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
           />
         </Column>
 
-        <Column title="Inspector" className="border-l bg-background">
+        <Column
+          title={selectedScenario ? "Scenario" : selectedAgent ? "Agent" : "Project"}
+          action={
+            selection && (
+              <button
+                type="button"
+                onClick={() => setSelection(null)}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="size-3" /> Overview
+              </button>
+            )
+          }
+          className="border-l bg-background"
+        >
           {selectedScenario ? (
             <ScenarioInspector
               scenario={selectedScenario}
@@ -168,10 +181,12 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
           ) : selectedAgent ? (
             <AgentInspector agent={selectedAgent} snapshot={snapshot} onOpenChange={setOpenChangeId} />
           ) : (
-            <div className="flex flex-col items-center gap-2 pt-16 text-center text-xs text-muted-foreground">
-              <MousePointerClick className="size-5" />
-              Select a scenario or an agent to inspect it.
-            </div>
+            <ProjectOverview
+              snapshot={snapshot}
+              latestRun={latestRun}
+              progress={progress}
+              onSelectScenario={(key) => setSelection({ kind: "scenario", key })}
+            />
           )}
         </Column>
       </main>
@@ -185,14 +200,7 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
         onClose={() => setOpenChangeId(null)}
       />
 
-      {api.error && (
-        <div role="alert" className="fixed bottom-4 left-4 z-50 flex max-w-md items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900 shadow-lg">
-          <span className="flex-1 leading-relaxed">{api.error}</span>
-          <button type="button" onClick={api.dismissError} aria-label="Dismiss" className="text-rose-500 hover:text-rose-700">
-            <X className="size-4" />
-          </button>
-        </div>
-      )}
+      {api.error && <ErrorToast message={api.error} onDismiss={api.dismissError} />}
     </div>
   );
 }

@@ -19,6 +19,55 @@ export function formatValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+export type EnvSummary = {
+  mode: "demo" | "live";
+  label: string;
+  /** One plain-language sentence for the header indicator's tooltip. */
+  summary: string;
+  /** Whether the user can ask for arbitrary changes, or only the scripted demo request. */
+  freeFormChanges: boolean;
+};
+
+/**
+ * The one product-level fact about this server's configuration: is it the self-contained offline demo, or is it
+ * wired to real models? Everything more specific lives in the Environment popover.
+ */
+export function envSummary(env: WorkspaceSnapshot["env"]): EnvSummary {
+  const demo = env.proposer.mode === "fixture" || env.mode === "fixture";
+  return {
+    mode: demo ? "demo" : "live",
+    label: demo ? "Demo mode" : "Live mode",
+    summary: demo
+      ? "This workspace runs on recorded models so the demo reproduces exactly. Open Environment for details."
+      : "This workspace is connected to real models. Open Environment for details.",
+    freeFormChanges: env.proposer.mode === "live",
+  };
+}
+
+/** Server messages that are really about this server's configuration, not about the user's request. */
+const CONFIG_LIMIT = /fixture proposer|ANTHROPIC_API_KEY|OPENAI_API_KEY|ARCHITECT_[A-Z_]+|DATABASE_URL/;
+const RULE_LIMIT = /scripted rule change|change other rules/;
+
+/**
+ * Turns a server error into product language. Configuration limits of the offline demo are a product state
+ * ("not enabled here"), not a developer error, so they never show environment variables or shell commands —
+ * those stay in the Environment popover.
+ */
+export function friendlyError(message: string): { title: string; detail: string | null } {
+  if (CONFIG_LIMIT.test(message)) {
+    return RULE_LIMIT.test(message)
+      ? {
+          title: "Free-form rule changes aren't enabled in Demo mode.",
+          detail: "Connect a model to rewrite any requirement. The suggested rule change below works offline.",
+        }
+      : {
+          title: "Free-form changes aren't enabled in Demo mode.",
+          detail: "Connect a model to ask Architect for arbitrary changes. The suggested request works offline.",
+        };
+  }
+  return { title: message, detail: null };
+}
+
 /** One line per event for the activity feed; null hides high-volume detail events. */
 export function describeEvent(e: WorkspaceEvent, snapshot: WorkspaceSnapshot): { text: string; tone: "default" | "good" | "bad" | "muted" } | null {
   const p = e.payload;
@@ -32,7 +81,7 @@ export function describeEvent(e: WorkspaceEvent, snapshot: WorkspaceSnapshot): {
         tone: "muted",
       };
     case "change.draft_failed":
-      return { text: `No change drafted: ${p.message}`, tone: "bad" };
+      return { text: `No change drafted: ${friendlyError(String(p.message)).title}`, tone: "bad" };
     case "change.created":
       return { text: `Change proposed: “${p.intent}”`, tone: "default" };
     case "change.structural_checked":
@@ -59,7 +108,7 @@ export function describeEvent(e: WorkspaceEvent, snapshot: WorkspaceSnapshot): {
     case "scenario.revision_drafting":
       return { text: `Architect is drafting a rule change for ${scenarioName(p.scenario)}: “${p.request}”`, tone: "muted" };
     case "scenario.revision_draft_failed":
-      return { text: `No rule change drafted: ${p.message}`, tone: "bad" };
+      return { text: `No rule change drafted: ${friendlyError(String(p.message)).title}`, tone: "bad" };
     case "scenario.revision_proposed":
       return { text: `Rule change drafted for ${scenarioName(p.scenario)} (v${p.version}), awaiting your review`, tone: "default" };
     case "scenario.revision_discarded":

@@ -3,6 +3,7 @@ import type { ScenarioResult } from "@/domain/schemas";
 import type { ScenarioVersionStatus, WorkspaceAgent, WorkspaceChange, WorkspaceScenario } from "@/server/workspace";
 import { cn } from "@/lib/utils";
 import { AssertionRow } from "./assertion-row";
+import { Disclosure } from "./disclosure";
 import { modelLabel, shortId } from "./format";
 import { JsonBlock } from "./json-block";
 import { RelativeTime } from "./relative-time";
@@ -50,9 +51,19 @@ export function ScenarioInspector({
   // A result only lines up with these assertions if it was judged against this version of the rule.
   const judgedVersion = result?.scenarioVersion;
   const sameRule = !result?.scenarioVersionId || result.scenarioVersionId === scenario.versionId;
-  const reply = (result?.trace.agents["store-advisor"]?.output as { reply?: string } | undefined)?.reply;
+  const entryKey = agents.find((a) => a.entry)?.key ?? agents[0]?.key ?? "";
+  const reply = (result?.trace.agents[entryKey]?.output as { reply?: string } | undefined)?.reply;
   const agentName = (key: string) => agents.find((a) => a.key === key)?.name ?? key;
   const traceAgents = result ? Object.values(result.trace.agents) : [];
+  const shown = sameRule ? result?.assertions : undefined;
+  const checkHint = shown
+    ? (() => {
+        const failing = shown.filter((a) => a.status === "fail" || a.status === "error").length;
+        const skipped = shown.filter((a) => a.status === "skipped").length;
+        if (failing) return `${failing} failing`;
+        return skipped ? `all passing · ${skipped} skipped` : "all passing";
+      })()
+    : "not run";
 
   return (
     <div className="space-y-5">
@@ -64,81 +75,94 @@ export function ScenarioInspector({
             v{scenario.version}
           </span>
         </div>
-        <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-2.5 text-xs leading-snug text-emerald-900">
-          <ShieldCheck className="size-4 shrink-0" />
-          <div>
-            <div className="font-medium">Protects</div>
-            {scenario.intent}
-          </div>
+        <p className="text-[13px] leading-relaxed">{scenario.intent}</p>
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <ShieldCheck className="size-3.5 shrink-0" />
+          <span>A concrete example Architect re-checks after every change</span>
         </div>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="border-t pt-2 text-[11px] text-muted-foreground">
           {statusLabel(status)} · {runLabel}
         </p>
       </header>
 
-      <Section title="Customer says">
+      <Section title="Customer experience">
         <div className="flex justify-end">
           <div className="flex max-w-[90%] gap-2 rounded-xl rounded-tr-sm bg-foreground px-3 py-2 text-[13px] leading-relaxed text-background">
             <MessageSquare className="mt-0.5 size-3.5 shrink-0 opacity-60" />
             {scenario.input.message}
           </div>
         </div>
-        {reply && <Reply text={reply} />}
-      </Section>
-
-      <Section title={`Assertions (${scenario.assertions.length})`}>
-        <div className="-mx-1 space-y-0.5">
-          {scenario.assertions.map((a, i) => (
-            <AssertionRow key={i} assertion={a} result={sameRule ? result?.assertions[i] : undefined} />
-          ))}
-        </div>
-        {!sameRule && (
-          <p className="text-[11px] text-amber-700">
-            The latest run judged v{judgedVersion} of this rule, so its results aren&apos;t shown against v{scenario.version}.
+        {reply ? (
+          <Reply text={reply} />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Run the scenarios to see the reply this customer would get from the live agents.
           </p>
         )}
       </Section>
 
-      <Section title="Trace">
-        {!result ? (
-          <p className="text-xs text-muted-foreground">No trace yet. Run the scenarios to see what each agent did.</p>
-        ) : (
-          <div className="space-y-2">
-            {result.trace.error && (
-              <p className="rounded-lg bg-rose-50 p-2 text-xs text-rose-700">Runtime error: {result.trace.error}</p>
-            )}
-            {traceAgents.map((t) => (
-              <details key={t.agent} className="group rounded-lg border bg-background">
-                <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium">
-                  <span className="flex-1">{agentName(t.agent)}</span>
-                  {t.toolCalls.length > 0 && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
-                      <Wrench className="size-3" />
-                      {t.toolCalls.length} tool call{t.toolCalls.length > 1 ? "s" : ""}
-                    </span>
-                  )}
-                  <span className="text-muted-foreground transition-transform group-open:rotate-90">›</span>
-                </summary>
-                <div className="space-y-2 border-t px-3 py-2.5">
-                  {t.toolCalls.map((c, i) => {
-                    const items = (c.result as { items?: { sku: string }[] } | null)?.items ?? [];
-                    return (
-                      <div key={i} className="rounded-md bg-violet-50/60 p-2 font-mono text-[11px] leading-relaxed">
-                        <div className="text-violet-800">
-                          {c.tool}({JSON.stringify(c.args)})
-                        </div>
-                        <div className="text-muted-foreground">
-                          → {items.length} result{items.length === 1 ? "" : "s"}
-                          {items.length > 0 && `: ${items.map((x) => x.sku).join(", ")}`}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <JsonBlock value={t.output} />
-                </div>
-              </details>
+      {/* The technical face of the same object: exactly how Architect decided this example passed or failed. */}
+      <Section title="Verification">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Architect replays this example and checks the agents&apos; tool calls and outputs against {scenario.assertions.length}{" "}
+          checks.
+        </p>
+        <Disclosure
+          label={`${scenario.assertions.length} checks`}
+          hint={checkHint}
+          defaultOpen={status === "fail" || status === "error"}
+        >
+          <div className="-mx-1 space-y-0.5">
+            {scenario.assertions.map((a, i) => (
+              <AssertionRow key={i} assertion={a} result={sameRule ? result?.assertions[i] : undefined} />
             ))}
           </div>
+          {!sameRule && (
+            <p className="mt-2 text-[11px] text-amber-700">
+              The latest run judged v{judgedVersion} of this rule, so its results aren&apos;t shown against v
+              {scenario.version}.
+            </p>
+          )}
+        </Disclosure>
+        {result && (
+          <Disclosure label="Agent traces" hint={`${traceAgents.length} agents`}>
+            <div className="space-y-2">
+              {result.trace.error && (
+                <p className="rounded-lg bg-rose-50 p-2 text-xs text-rose-700">Runtime error: {result.trace.error}</p>
+              )}
+              {traceAgents.map((t) => (
+                <details key={t.agent} className="group rounded-lg border bg-background">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium">
+                    <span className="flex-1">{agentName(t.agent)}</span>
+                    {t.toolCalls.length > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
+                        <Wrench className="size-3" />
+                        {t.toolCalls.length} tool call{t.toolCalls.length > 1 ? "s" : ""}
+                      </span>
+                    )}
+                    <span className="text-muted-foreground transition-transform group-open:rotate-90">›</span>
+                  </summary>
+                  <div className="space-y-2 border-t px-3 py-2.5">
+                    {t.toolCalls.map((c, i) => {
+                      const items = (c.result as { items?: { sku: string }[] } | null)?.items ?? [];
+                      return (
+                        <div key={i} className="rounded-md bg-violet-50/60 p-2 font-mono text-[11px] leading-relaxed">
+                          <div className="text-violet-800">
+                            {c.tool}({JSON.stringify(c.args)})
+                          </div>
+                          <div className="text-muted-foreground">
+                            → {items.length} result{items.length === 1 ? "" : "s"}
+                            {items.length > 0 && `: ${items.map((x) => x.sku).join(", ")}`}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <JsonBlock value={t.output} />
+                  </div>
+                </details>
+              ))}
+            </div>
+          </Disclosure>
         )}
       </Section>
 
@@ -165,13 +189,17 @@ function RuleHistory({
   onOpenChange: (id: string) => void;
 }) {
   return (
-    <Section title={`Rule history (${scenario.versions.length})`}>
+    <Section title="Rule history">
+      <Disclosure
+        label={`${scenario.versions.length} version${scenario.versions.length === 1 ? "" : "s"} of this rule`}
+        hint={`live: v${scenario.version}`}
+      >
       <div className="space-y-2">
         {scenario.versions.map((v) => {
           const base = scenario.versions.find((x) => x.id === v.basedOnVersionId);
           const change = changes.find((c) => c.id === v.changeId);
           return (
-            <div key={v.id} className="rounded-xl border bg-background p-3">
+            <div key={v.id} className="rounded-lg border bg-muted/20 p-2.5">
               <div className="flex items-center gap-2">
                 <span className={cn("rounded-full border px-2 py-0.5 font-mono text-[10.5px]", versionTone[v.status])}>
                   v{v.version} · {v.status}
@@ -195,7 +223,7 @@ function RuleHistory({
                 )}
                 {v.proposal && (
                   <span className="inline-flex items-center gap-1">
-                    <Sparkles className="size-3" /> drafted by {v.proposal.mode === "live" ? modelLabel(v.proposal.model) : "fixture proposer"}
+                    <Sparkles className="size-3" /> drafted by {v.proposal.mode === "live" ? modelLabel(v.proposal.model) : "the recorded demo proposer"}
                   </span>
                 )}
               </div>
@@ -213,6 +241,7 @@ function RuleHistory({
           );
         })}
       </div>
+      </Disclosure>
     </Section>
   );
 }

@@ -1,4 +1,4 @@
-import { FlaskConical, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { WorkspaceRun, WorkspaceScenario } from "@/server/workspace";
 import { cn } from "@/lib/utils";
 import { StatusIcon, statusLabel } from "./status";
@@ -20,6 +20,15 @@ const dotTone = {
   fail: "bg-rose-500",
   error: "bg-rose-500",
   skipped: "bg-amber-400",
+};
+
+const labelTone: Record<string, string> = {
+  pass: "text-emerald-700",
+  fail: "text-rose-700",
+  error: "text-rose-700",
+  running: "text-sky-700",
+  queued: "text-muted-foreground",
+  idle: "text-muted-foreground",
 };
 
 const contextTone = {
@@ -52,7 +61,7 @@ export function ScenarioStrip({
     <section className="border-b bg-background px-5 py-3">
       <div className="mb-2.5 flex items-center gap-3">
         <div className="flex items-center gap-1.5 text-sm font-semibold">
-          <FlaskConical className="size-4 text-muted-foreground" />
+          <ShieldCheck className="size-4 text-muted-foreground" />
           Scenarios
         </div>
         <span className="text-xs tabular-nums text-muted-foreground">
@@ -66,7 +75,7 @@ export function ScenarioStrip({
         {scenarios.map((s, i) => {
           const status = statuses[i];
           const result = latestRun?.results?.find((r) => r.scenarioKey === s.key);
-          const showDots = !streaming && result;
+          const shown = streaming ? undefined : result;
           return (
             <button
               key={s.key}
@@ -89,21 +98,21 @@ export function ScenarioStrip({
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 flex items-start gap-1 text-xs leading-snug text-muted-foreground">
-                    <ShieldCheck className="mt-px size-3 shrink-0" />
-                    <span className="line-clamp-2">{s.intent}</span>
-                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">{s.intent}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between pl-6">
-                <div className="flex gap-1">
-                  {showDots
-                    ? result.assertions.map((a, j) => (
-                        <span key={j} title={a.status} className={cn("h-1.5 w-3 rounded-full", dotTone[a.status])} />
-                      ))
-                    : s.assertions.map((_, j) => <span key={j} className="h-1.5 w-3 rounded-full bg-muted" />)}
-                </div>
-                <span className="text-[11px] text-muted-foreground">{statusLabel(status)}</span>
+              <div className="flex items-center justify-between gap-2 pl-6">
+                <span className={cn("text-[11px] font-medium", labelTone[status])}>{statusLabel(status)}</span>
+                <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  {shown && (
+                    <span className="flex gap-0.5" aria-hidden>
+                      {shown.assertions.map((a, j) => (
+                        <span key={j} className={cn("h-1 w-2.5 rounded-full", dotTone[a.status])} />
+                      ))}
+                    </span>
+                  )}
+                  {s.assertions.length} checks
+                </span>
               </div>
             </button>
           );

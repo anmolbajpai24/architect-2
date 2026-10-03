@@ -134,3 +134,20 @@ export function scenarioStatus(key: string, latestRun: WorkspaceRun | undefined,
   if (streaming) return streaming.scenarios[key] ?? (streaming.finished ? "idle" : "queued");
   return latestRun?.results?.find((r) => r.scenarioKey === key)?.status ?? "idle";
 }
+
+export type Protection = { total: number; passing: number; failing: number; notRun: boolean };
+
+/** How much of this app's protected behavior currently holds, as the workspace states it in several places. */
+export function protectionSummary(
+  scenarios: { key: string }[],
+  latestRun: WorkspaceRun | undefined,
+  progress: Progress | null,
+): Protection {
+  const statuses = scenarios.map((s) => scenarioStatus(s.key, latestRun, progress));
+  return {
+    total: scenarios.length,
+    passing: statuses.filter((s) => s === "pass").length,
+    failing: statuses.filter((s) => s === "fail" || s === "error").length,
+    notRun: statuses.length > 0 && statuses.every((s) => s === "idle"),
+  };
+}
