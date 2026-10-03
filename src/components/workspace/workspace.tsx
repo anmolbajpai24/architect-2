@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Boxes, LoaderCircle, Play, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Boxes, ExternalLink, LoaderCircle, Play, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { WorkspaceSnapshot } from "@/server/workspace";
 import { AgentInspector } from "./agent-inspector";
@@ -114,6 +114,12 @@ export function Workspace({ initial, initialChangeId = null, initialPrompt = nul
               {api.busyLabel}…
             </span>
           )}
+          {/* The generated application itself, at its own URL, running these same live agent versions. */}
+          <Button variant="ghost" size="sm" asChild>
+            <a href={`/preview/${snapshot.project.id}`} target="_blank" rel="noreferrer">
+              Preview <ExternalLink data-icon="inline-end" />
+            </a>
+          </Button>
           {/* Only a project backed by a definition in code has a seeded state to go back to. */}
           {snapshot.project.origin === "definition" && (
             <Button variant="ghost" size="sm" disabled={api.busy} onClick={() => { setOpenChangeId(null); api.reset(); }}>

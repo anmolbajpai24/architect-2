@@ -33,6 +33,63 @@ an `after()` callback bounded by the route's time limit. Both are sound for a si
 pretended to be more: the production evolution is a lease row in Postgres and a durable worker, and the code that
 would change is `src/server/context.ts` alone.
 
+## Preview: running the generated application
+
+A project in Architect is already executable. Its agents are rows (`agent_versions.config` holds instructions,
+model, tools and output schema), and `src/runtime/run-system.ts` runs them against a message. So "preview the
+generated app" needs a surface, not a deployment.
+
+### Prototype (implemented)
+
+```
+Browser ──▶ /preview/<projectId> ──▶ POST /api/preview ──▶ runSystem(live agent versions) ──▶ provider
+```
+
+- The preview page is a separate URL per project and opens in its own tab, so the generated application is a
+  thing you can visit, not a panel inside Architect.
+- One turn is **one `runSystem` call on the project's live agent versions** — the same function, tool registry and
+  models the verification engine uses. There is no preview-only execution path, so the preview cannot drift from
+  what the scenarios check.
+- Each turn re-reads the live versions, so applying a change in Architect changes the next answer. The agent
+  lineup in the preview header carries version numbers, which is how you see that it landed.
+- Nothing is written. A preview turn creates no `runs` row and emits no event: it is interaction, not
+  verification, and the run history is the record of what was verified.
+- The trace is one click under every answer — which agents ran, what they called, what each returned. A preview
+  you cannot check is a demo.
+
+What it is not: there is no sandbox, no process isolation, no generated code and no deployment. The agents run
+in the Architect server process, on the server's provider credential. That is honest for a single-tenant
+prototype where every project is the owner's own, and it is exactly what the production design below replaces.
+
+### Production
+
+```
+Browser ──▶ preview gateway ──(signed, scoped session)──▶ sandbox ──▶ agent harness ──▶ generated application
+                   │                                        │
+                   └── per-project hostname, rate limits     └── per-project credentials, egress allowlist
+```
+
+- **Preview gateway/proxy.** A per-project hostname (`<project>.preview.<domain>`) terminating at a gateway that
+  authenticates the viewer, rate-limits, and routes to that project's sandbox. It is also the only thing that
+  needs to be public, so the sandbox never is.
+- **Isolated sandbox.** One short-lived, per-project execution environment (Firecracker microVM or an equivalent
+  container sandbox) with no ambient credentials, a filesystem it cannot escape, and an **egress allowlist** —
+  the model provider and the project's declared tool endpoints, nothing else. This is what makes it safe to run
+  tools a user's project defines rather than only the ones Architect ships.
+- **Agent harness.** The runtime that exists today (`runSystem`, the tool registry, the fixture model) packaged
+  as the sandbox's entrypoint, taking an agent system as data and exposing one `POST /turn`. Keeping it the same
+  code is the point: the preview, the scenarios and production would stay one execution path.
+- **Generated application.** Today a project is agents plus data. If projects later carry their own UI or custom
+  tool implementations, that artifact is built and served inside the sandbox, which is also where arbitrary
+  generated code would first become safe to execute.
+- **Deployment.** Promoting a verified change from preview to a durable environment, reusing the existing ship
+  gate: a project only deploys from a change that is applied, structurally valid and passing every scenario.
+- **Credentials.** The sandbox gets a short-lived, per-project token from the gateway, never the server's
+  provider key — the same reasoning as the GitHub App installation token below.
+
+None of the production row is built. The prototype runs the generated project in the Architect server process,
+and the only reason that is acceptable is that generated projects have no tools and no generated code to execute.
+
 ## Shipping to GitHub
 
 **Invariant: a Change cannot be shipped until Architect has verified its behavior.** The server enforces this in
