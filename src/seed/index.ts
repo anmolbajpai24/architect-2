@@ -16,9 +16,21 @@ export const DEMO_PROJECT_SLUG = "laptop-advisor";
 export async function seedDemo(db: Db, { reset = false } = {}): Promise<string> {
   const [existing] = await db.select().from(projects).where(eq(projects.slug, DEMO_PROJECT_SLUG));
   if (existing && !reset) return existing.id;
+  try {
+    return await seedTransaction(db, existing?.id);
+  } catch (err) {
+    // On a shared database two cold-starting instances can seed at the same moment. The unique slug settles it;
+    // the one that lost simply reads the project the other created.
+    if (reset) throw err;
+    const [winner] = await db.select().from(projects).where(eq(projects.slug, DEMO_PROJECT_SLUG));
+    if (winner) return winner.id;
+    throw err;
+  }
+}
 
+async function seedTransaction(db: Db, existingId: string | undefined): Promise<string> {
   return db.transaction(async (tx) => {
-    if (existing) await tx.delete(projects).where(eq(projects.id, existing.id));
+    if (existingId) await tx.delete(projects).where(eq(projects.id, existingId));
 
     await tx.delete(catalogItems);
     await tx.insert(catalogItems).values(catalog);

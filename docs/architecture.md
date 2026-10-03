@@ -12,6 +12,27 @@ request → Change (new immutable AgentVersions) → structural check → behavi
 One Next.js app (App Router): route handlers for actions, Server-Sent Events for live progress, Postgres (Supabase,
 or in-process PGlite locally) through Drizzle. Agents run on the Vercel AI SDK. Details of each part live in `CLAUDE.md`.
 
+## Running it: local and production
+
+One Drizzle schema, two engines. Without `DATABASE_URL` Architect opens an in-process PGlite database, fresh per
+process: zero-setup local development and the offline demo. With `DATABASE_URL` it opens Postgres (Supabase) over
+`postgres.js` with prepared statements disabled, which is what the transaction pooler requires. The same
+migrations in `drizzle/` apply to both, and no SQL is engine-specific — the difference is confined to
+`src/db/client.ts`.
+
+Configuration is read in one place (`src/server/env.ts`) and is server-side only: no variable is prefixed
+`NEXT_PUBLIC_`, and the browser is given derived statuses (which mode, which model name, which repositories),
+never a credential. `src/server/config.ts` turns that configuration into one report, which both `/api/health` and
+the workspace's Environment panel render. Modes are explicit on purpose: a live mode without a usable key is
+reported as a problem and refuses the work, rather than quietly falling back to the recorded fixtures — a reviewer
+has to be able to tell a real result from a replayed one.
+
+`docs/DEPLOYMENT.md` has the setup steps, the variables, and the prototype limitations that follow from this
+shape — chiefly that job serialization lives in one process's memory and that background verification runs inside
+an `after()` callback bounded by the route's time limit. Both are sound for a single server and neither is
+pretended to be more: the production evolution is a lease row in Postgres and a durable worker, and the code that
+would change is `src/server/context.ts` alone.
+
 ## Shipping to GitHub
 
 **Invariant: a Change cannot be shipped until Architect has verified its behavior.** The server enforces this in

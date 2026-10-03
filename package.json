@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,6 +14,7 @@
     "scenarios:regress": "tsx scripts/scenarios-regress.ts",
     "ship:check": "tsx scripts/ship-check.ts",
     "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/db-migrate.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -22,7 +26,7 @@
     "cn": "^0.4.0",
     "drizzle-orm": "^0.45.3",
     "lucide-react": "^1.49.0",
-    "next": "^16.3.8",
+    "next": "16.3.8",
     "postgres": "^3.4.9",
     "radix-ui": "^1.6.7",
     "react": "^19.3.0",

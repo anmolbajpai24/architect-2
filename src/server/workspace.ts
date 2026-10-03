@@ -21,6 +21,7 @@ import { FIXTURE_RULE_CHANGES } from "@/scenarios/fixture-proposer";
 import { loadScenarios } from "@/scenarios/runner";
 import { githubStatus, type GitHubStatus } from "@/github/config";
 import { checkShipGate } from "@/shipping/gate";
+import { configReport } from "./config";
 import { busyJob, getModes } from "./context";
 
 export type VersionStatus = "live" | "proposed" | "verified" | "rejected" | "superseded";
@@ -138,6 +139,8 @@ export type WorkspaceSnapshot = {
     judge: "skip" | "live";
     proposer: { mode: "fixture" | "live"; model: string };
     github: GitHubStatus;
+    /** Configuration this server can't honor (e.g. live models with no provider key). Variable names, never values. */
+    problems: string[];
   };
   busy: string | null;
   suggestedIntents: string[];
@@ -258,7 +261,7 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
 
   return {
     project: { id: project.id, name: project.name, slug: project.slug },
-    env: { db: dbKind, ...getModes(), proposer, github: githubStatus() },
+    env: { db: dbKind, ...getModes(), proposer, github: githubStatus(), problems: configReport().problems },
     busy: busyJob(),
     suggestedIntents: suggestedIntents(proposer.mode),
     agents: workspaceAgents,

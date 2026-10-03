@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Settings2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, Settings2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { WorkspaceSnapshot } from "@/server/workspace";
@@ -89,6 +89,21 @@ export function EnvironmentButton({ env }: { env: WorkspaceSnapshot["env"] }) {
           <span className="text-xs font-semibold">Environment</span>
           <span className="ml-auto text-[11px] text-muted-foreground">{summary.label}</span>
         </div>
+        {env.problems.length > 0 && (
+          <div className="border-b bg-amber-50 px-3.5 py-2.5 dark:bg-amber-950/30">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span className="text-[11px] font-semibold">Needs attention</span>
+            </div>
+            <ul className="mt-1 space-y-1 pl-5.5">
+              {env.problems.map((p) => (
+                <li key={p} className="text-[11px] leading-relaxed text-muted-foreground">
+                  {p}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <dl className="divide-y">
           {rows(env).map((r) => (
             <div key={r.label} className="px-3.5 py-2.5">

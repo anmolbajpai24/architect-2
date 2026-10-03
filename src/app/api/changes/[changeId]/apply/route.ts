@@ -2,12 +2,17 @@ import { eq } from "drizzle-orm";
 import { applyChange } from "@/changes/change";
 import { changes } from "@/db/schema";
 import { loadCurrentVersions, runScenarios } from "@/scenarios/runner";
+import { liveModelProblem } from "@/server/config";
 import { busyJob, getDb, getModes, getProjectId, startJob } from "@/server/context";
 import { busyResponse, errorResponse } from "@/server/responses";
+
+export const maxDuration = 60;
 
 /** Applies a verified change, then re-runs every scenario against the now-live agents. */
 export async function POST(_req: Request, ctx: { params: Promise<{ changeId: string }> }) {
   const { changeId } = await ctx.params;
+  const problem = liveModelProblem();
+  if (problem) return errorResponse(problem, 503);
   const { db } = await getDb();
   const [change] = await db.select().from(changes).where(eq(changes.id, changeId));
   if (!change) return errorResponse("Change not found.", 404);

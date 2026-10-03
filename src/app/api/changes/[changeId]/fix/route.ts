@@ -3,8 +3,11 @@ import { keepRuleAndFix, loadBlockedChangeContext, verifyChange } from "@/change
 import { draftFix, ProposalError, proposerConfig, type Draft } from "@/changes/proposer";
 import { changes } from "@/db/schema";
 import { emit } from "@/events";
+import { liveModelProblem } from "@/server/config";
 import { claimBusy, getDb, getModes, startJob } from "@/server/context";
 import { busyResponse, errorResponse } from "@/server/responses";
+
+export const maxDuration = 60;
 
 /**
  * "Keep the rule → Fix it": Architect drafts a revision of a behaviorally failed change that keeps the
@@ -19,6 +22,9 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
   if (failed.status !== "behavioral_failed" || failed.resolution === "keep_rule_fix") {
     return errorResponse("Only an unresolved, behaviorally failed change can be fixed.", 409);
   }
+
+  const problem = liveModelProblem();
+  if (problem) return errorResponse(problem, 503);
 
   const release = claimBusy("Drafting fix");
   if (!release) return busyResponse();

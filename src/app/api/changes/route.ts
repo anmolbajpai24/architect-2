@@ -3,10 +3,14 @@ import { proposeChange, verifyChange } from "@/changes/change";
 import { draftChange, ProposalError, proposerConfig, type Draft } from "@/changes/proposer";
 import { emit } from "@/events";
 import { loadCurrentVersions } from "@/scenarios/runner";
+import { liveModelProblem } from "@/server/config";
 import { claimBusy, getDb, getModes, getProjectId, startJob } from "@/server/context";
 import { busyResponse, errorResponse } from "@/server/responses";
 
 const Body = z.object({ intent: z.string().trim().min(1).max(2000) });
+
+/** Drafting is one model call in the request; verifying the draft then runs every scenario in the background. */
+export const maxDuration = 60;
 
 /**
  * Architect drafts edits for the request (LLM proposer), records them as a Change, then verifies it in the
@@ -16,6 +20,9 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return errorResponse("Describe the change you want.", 400);
   const { intent } = parsed.data;
+
+  const problem = liveModelProblem();
+  if (problem) return errorResponse(problem, 503);
 
   const release = claimBusy("Drafting change");
   if (!release) return busyResponse();

@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
+import { apiKeyForModel, serverEnv } from "@/server/env";
 import { createFixtureModel } from "./fixture-model";
 
 /** fixture: deterministic stand-in models (default). live: the provider model named in the AgentVersion config. */
@@ -15,10 +16,7 @@ export function resolveModel(spec: string): LanguageModel {
 }
 
 export function hasCredentials(spec: string): boolean {
-  const provider = spec.split(":")[0];
-  if (provider === "anthropic") return Boolean(process.env.ANTHROPIC_API_KEY);
-  if (provider === "openai") return Boolean(process.env.OPENAI_API_KEY);
-  return false;
+  return Boolean(apiKeyForModel(spec));
 }
 
 export function agentModel(agentKey: string, spec: string, mode: ModelMode): LanguageModel {
@@ -26,5 +24,5 @@ export function agentModel(agentKey: string, spec: string, mode: ModelMode): Lan
 }
 
 export function judgeModelSpec(): string {
-  return process.env.JUDGE_MODEL || "anthropic:claude-opus-5-5";
+  return serverEnv().JUDGE_MODEL || "anthropic:claude-opus-5-5";
 }

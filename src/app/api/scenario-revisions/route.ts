@@ -15,6 +15,9 @@ const Body = z.object({
   request: z.string().trim().min(1).max(2000),
 });
 
+/** Drafting the revised rule is one model call made inside the request. */
+export const maxDuration = 60;
+
 /**
  * "Change the rule", step 1: Architect drafts a revised Scenario from the user's new requirement and stores it as a
  * proposed version. Nothing is live until the user applies it.

@@ -8,6 +8,7 @@ import { entryAgentKey } from "@/runtime/run-system";
 import { TOOL_DESCRIPTIONS, TOOL_NAMES } from "@/runtime/tools";
 import type { AgentEdit } from "./change";
 import { createFixtureProposerModel, FIXTURE_INTENTS } from "./fixture-proposer";
+import { serverEnv } from "@/server/env";
 
 /**
  * Architect's proposer: turns a user's request into edits to agent configurations, using an LLM with
@@ -27,8 +28,9 @@ export type Draft = { edits: Record<string, AgentEdit>; proposal: ChangeProposal
 export class ProposalError extends Error {}
 
 export function proposerConfig(): ProposerConfig {
-  const model = process.env.ARCHITECT_PROPOSER_MODEL || "anthropic:claude-opus-5-5";
-  const explicit = process.env.ARCHITECT_PROPOSER;
+  const env = serverEnv();
+  const model = env.ARCHITECT_PROPOSER_MODEL || "anthropic:claude-opus-5-5";
+  const explicit = env.ARCHITECT_PROPOSER;
   const mode = explicit === "live" || explicit === "fixture" ? explicit : hasCredentials(model) ? "live" : "fixture";
   return { mode, model };
 }

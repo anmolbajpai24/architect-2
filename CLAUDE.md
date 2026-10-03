@@ -59,7 +59,7 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - `pnpm scenarios:regress [--judge] [--live]`: the key demo end to end; exits non-zero if any step deviates.
 - `pnpm ship:check [--print]`: Ship to GitHub against an in-memory fake GitHub (gate, branch/commit/PR, provenance,
   duplicates, failure events). Never calls the real GitHub.
-- `pnpm typecheck`, `pnpm db:generate`.
+- `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate` (applies `drizzle/` to `DATABASE_URL`).
 
 ## Workspace UI (Phase 2)
 
@@ -133,6 +133,22 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
   allowed, 503 not configured, 502 GitHub error. `/?change=<id>` opens a change (linked from the PR).
 - Production design (documented, not built): GitHub App → short-lived installation token. See `docs/architecture.md`.
 
+## Deployment (Phase 6A)
+
+- One app, two engines, one schema: no `DATABASE_URL` → in-process PGlite (local only); set → Supabase Postgres
+  (`postgres.js`, `prepare: false`, pool 3). A deployment (`VERCEL` set) without `DATABASE_URL` is refused —
+  every instance would seed its own throwaway project — unless `ARCHITECT_ALLOW_EPHEMERAL_DB=1`.
+- `src/server/env.ts` is the only reader of configuration: schema-validated, loads `.env.local` then `.env` for the
+  scripts, and exposes `redactSecrets` for anything that leaves the server. Nothing is `NEXT_PUBLIC_`.
+- `src/server/config.ts` derives one `ConfigReport` (statuses and variable names, never values) for `GET /api/health`
+  and for `env.problems` in the workspace snapshot, shown as "Needs attention" in the Environment popover.
+  `liveModelProblem()` makes every route that would call a provider return 503 with a plain-language message when a
+  live mode has no key: no silent fallback to fixtures. `src/app/error.tsx` points a failed boot at `/api/health`.
+- Vercel: `vercel.json` is framework + frozen install only; `maxDuration = 60` is declared per route (route segment
+  config, not `vercel.json`). SSE closes at 50s and the browser resumes from a `sync` event's id.
+- Prototype limits are documented, not papered over, in `docs/DEPLOYMENT.md` §8: the one-job lock is process-local,
+  `after()` jobs die at the route limit, SSE is a poll, migrations run on cold start.
+
 ## Phases
 
 - Phase 1 (done): headless vertical slice — catalog seed, agents + immutable versions, scenarios,
@@ -143,6 +159,8 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - LLM change proposer (done): replaces the demo-only lookup; verification flow unchanged.
 - Phase 4 (done): "Change the rule" with versioned scenarios and an LLM Scenario proposer.
 - Phase 5 (done): Ship to GitHub (verified, applied change → branch, commit, pull request).
+- Phase 6A (done): deployment readiness — environment model, Supabase path, health endpoint, Vercel limits,
+  `docs/DEPLOYMENT.md`. No new product features.
 - Not yet: E2B / generated-app execution, auth, GitHub App installation flow.
 
 <!-- BEGIN:nextjs-agent-rules -->

@@ -6,6 +6,9 @@ import { busyResponse, errorResponse } from "@/server/responses";
 
 const Body = z.object({ repository: z.string().trim().min(1).optional() });
 
+/** Shipping is a short sequence of GitHub REST calls made inside the request. */
+export const maxDuration = 60;
+
 /**
  * Ships a verified, applied change to GitHub (branch → commit → pull request), server-side with the server's
  * credential. The gate is enforced in shipChange; the UI hiding the button is only a convenience.

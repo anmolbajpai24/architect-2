@@ -1,6 +1,9 @@
 import { applyScenarioRevision, RevisionError, verifyRuleChange } from "@/scenarios/revisions";
+import { liveModelProblem } from "@/server/config";
 import { busyJob, getDb, getModes, startJob } from "@/server/context";
 import { busyResponse, errorResponse } from "@/server/responses";
+
+export const maxDuration = 60;
 
 /**
  * "Change the rule", step 2: the user explicitly makes the revision the live rule. Then, in the background, every
@@ -8,6 +11,8 @@ import { busyResponse, errorResponse } from "@/server/responses";
  */
 export async function POST(_req: Request, ctx: { params: Promise<{ revisionId: string }> }) {
   const { revisionId } = await ctx.params;
+  const problem = liveModelProblem();
+  if (problem) return errorResponse(problem, 503);
   if (busyJob()) return busyResponse();
   const { db } = await getDb();
 

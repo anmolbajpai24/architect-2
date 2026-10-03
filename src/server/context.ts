@@ -4,6 +4,7 @@ import { emit } from "@/events";
 import type { ModelMode } from "@/runtime/models";
 import type { JudgeMode } from "@/scenarios/assertions";
 import { seedDemo } from "@/seed";
+import { serverEnv } from "@/server/env";
 
 type Context = { db: Db; kind: "postgres" | "pglite" };
 
@@ -24,12 +25,27 @@ export async function getProjectId(db: Db): Promise<string> {
 }
 
 export function getModes(): { mode: ModelMode; judge: JudgeMode } {
-  const live = process.env.ARCHITECT_MODEL_MODE === "live";
+  const env = serverEnv();
+  const live = env.ARCHITECT_MODEL_MODE === "live";
   return {
     mode: live ? "live" : "fixture",
-    judge: live || process.env.ARCHITECT_JUDGE === "live" ? "live" : "skip",
+    judge: live || env.ARCHITECT_JUDGE === "live" ? "live" : "skip",
   };
 }
+
+/**
+ * ---- Job serialization (prototype) --------------------------------------------------------------------------
+ *
+ * One job at a time, so a verification run and the agent versions it reads can't interleave with another one.
+ * The lock lives in this process's memory. That is sound for a single server — `pnpm dev`, `pnpm start`, one
+ * container — and it is the only part of Architect that is not safe to run on more than one instance: two Vercel
+ * instances each see an empty lock and would both start a run.
+ *
+ * TODO (production): replace this with a lease in Postgres — a `job_leases` row claimed with a conditional
+ * `update ... where expires_at < now()`, renewed by the worker, expiring if the instance dies — and move the job
+ * body out of `after()` into a worker that survives the request. Nothing outside this block depends on where the
+ * lock lives: `busyJob` / `claimBusy` / `startJob` is the whole surface. See docs/DEPLOYMENT.md.
+ */
 
 /** Label of the background job in flight, if any. One at a time keeps the demo's runs unambiguous. */
 export function busyJob(): string | null {
@@ -48,6 +64,10 @@ export function claimBusy(label: string): (() => void) | null {
 /**
  * Runs `job` after the response is sent. Progress reaches the client through the events table;
  * a crash is recorded as a `job.failed` event instead of leaving the UI waiting.
+ *
+ * `after()` keeps the invocation alive until the job settles, but only up to the route's `maxDuration`. A job cut
+ * off at that limit emits no event, so the run row stays unfinished — the prototype ceiling documented in
+ * docs/DEPLOYMENT.md, and the reason live runs want a higher limit than fixture runs.
  */
 export function startJob(db: Db, projectId: string, label: string, job: () => Promise<unknown>): boolean {
   if (!claimBusy(label)) return false;
