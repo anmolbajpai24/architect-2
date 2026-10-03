@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkspaceChange, WorkspaceEvent, WorkspaceSnapshot } from "@/server/workspace";
 import { cn } from "@/lib/utils";
+import { ActiveChange } from "./active-change";
 import { describeEvent, modelLabel, shortId } from "./format";
 import { RelativeTime } from "./relative-time";
 import { ChangeStatusPill } from "./status";
-import type { Protection } from "./use-workspace";
+import type { Progress, Protection } from "./use-workspace";
 
 export function versionNumber(snapshot: WorkspaceSnapshot, versionId: string | undefined) {
   for (const a of snapshot.agents) {
@@ -179,57 +180,92 @@ function Activity({ events, snapshot }: { events: WorkspaceEvent[]; snapshot: Wo
 
 /**
  * What the workspace says before any change exists: the workflow itself, not a dashboard. It states what is
- * protected and what currently holds, then hands over to Ask Architect.
+ * protected, then hands over to Ask Architect.
  */
-function WorkflowIntro({ protection }: { protection: Protection }) {
-  const { total, passing, failing, notRun } = protection;
+function WorkflowIntro({ total }: { total: number }) {
   return (
     <div className="space-y-1.5">
       <p className="text-[15px] font-medium leading-snug">
         You have {total} scenario{total === 1 ? "" : "s"} protecting this app.
       </p>
-      <p
-        className={cn(
-          "text-sm",
-          failing > 0 ? "text-rose-700" : notRun ? "text-muted-foreground" : "text-emerald-700",
-        )}
-      >
-        {notRun
-          ? "None have been verified yet — run them to see where the agents stand."
-          : failing > 0
-            ? `${failing} of ${total} currently fail.`
-            : `All ${total} currently pass.`}
-      </p>
-      <p className="pt-1 text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         Describe a change and Architect verifies it against every one of them before anything goes live.
       </p>
     </div>
   );
 }
 
+/**
+ * Where the live agents stand, once they have been run and before any change is in flight. Subordinate to the
+ * composer: the verdict belongs to the scenarios, and the scenarios are one click away.
+ */
+function RunSummary({ protection, onViewScenario }: { protection: Protection; onViewScenario: () => void }) {
+  const { total, passing, failing, notRun } = protection;
+  return (
+    <section className="rounded-xl border bg-background p-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Verification</div>
+      <p
+        className={cn(
+          "mt-1 text-sm font-medium",
+          notRun ? "text-muted-foreground" : failing > 0 ? "text-rose-700" : "text-emerald-700",
+        )}
+      >
+        {notRun ? "Not run yet" : `${passing}/${total} scenarios passing`}
+      </p>
+      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+        {notRun
+          ? "Run the scenarios to see how the live agents behave right now."
+          : failing > 0
+            ? "The live agents don't meet every behavior you protect."
+            : "All protected behaviors currently hold."}
+      </p>
+      <button
+        type="button"
+        onClick={onViewScenario}
+        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+      >
+        View scenarios <ArrowRight className="size-3" />
+      </button>
+    </section>
+  );
+}
+
+/**
+ * The center column: the user's current task. Before any change it is the workflow and the composer; once a
+ * change exists the newest one leads, because that is what Architect is evaluating right now. Earlier changes
+ * stay below as history.
+ */
 export function ChangesPanel({
   snapshot,
   events,
   protection,
+  progress,
   busy,
   drafting,
   openChangeId,
   onPropose,
   onOpenChange,
+  onViewScenario,
 }: {
   snapshot: WorkspaceSnapshot;
   events: WorkspaceEvent[];
   protection: Protection;
+  progress: Progress | null;
   busy: boolean;
   drafting: boolean;
   openChangeId: string | null;
   onPropose: (intent: string) => Promise<boolean>;
   onOpenChange: (id: string) => void;
+  onViewScenario: () => void;
 }) {
-  const noChanges = snapshot.changes.length === 0;
+  const [active, ...earlier] = snapshot.changes; // newest first
   return (
     <div className="flex flex-col gap-5">
-      {noChanges && <WorkflowIntro protection={protection} />}
+      {active ? (
+        <ActiveChange change={active} snapshot={snapshot} progress={progress} onOpen={onOpenChange} />
+      ) : (
+        <WorkflowIntro total={protection.total} />
+      )}
 
       <Composer
         suggestions={snapshot.suggestedIntents}
@@ -239,11 +275,15 @@ export function ChangesPanel({
         onPropose={onPropose}
       />
 
-      {!noChanges && (
+      {!active && <RunSummary protection={protection} onViewScenario={onViewScenario} />}
+
+      {earlier.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Changes</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Earlier changes
+          </h3>
           <div className="flex flex-col gap-2">
-            {snapshot.changes.map((c) => (
+            {earlier.map((c) => (
               <ChangeCard
                 key={c.id}
                 change={c}

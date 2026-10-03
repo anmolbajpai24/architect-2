@@ -140,16 +140,26 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
           />
         </Column>
 
-        <Column title={snapshot.changes.length ? "Ask Architect · Changes" : "Ask Architect"}>
+        <Column title={snapshot.changes.length ? "Current change" : "Ask Architect"}>
           <ChangesPanel
             snapshot={snapshot}
             events={events}
             protection={protection}
+            progress={progress}
             busy={api.busy}
             drafting={api.busyLabel === "Drafting change"}
             openChangeId={openChangeId}
             onPropose={propose}
             onOpenChange={setOpenChangeId}
+            onViewScenario={() => {
+              // The scenario worth looking at is the one that isn't holding, else the first.
+              const failing = snapshot.scenarios.find((s) => {
+                const status = scenarioStatus(s.key, latestRun, progress);
+                return status === "fail" || status === "error";
+              });
+              const key = (failing ?? snapshot.scenarios[0])?.key;
+              if (key) setSelection({ kind: "scenario", key });
+            }}
           />
         </Column>
 
