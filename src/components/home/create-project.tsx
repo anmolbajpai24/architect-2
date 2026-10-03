@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CircleAlert, LoaderCircle, ShieldCheck, Sparkles, Users } from "lucide-react";
 import type { NormalizedBlueprint } from "@/projects/blueprint";
@@ -15,6 +15,21 @@ import type { NormalizedBlueprint } from "@/projects/blueprint";
 
 type Plan = { blueprint: NormalizedBlueprint; notes: string[]; model: string; brief: string };
 type Stage = { kind: "idle" } | { kind: "planning" } | { kind: "review"; plan: Plan } | { kind: "building"; plan: Plan };
+
+// Signing in leaves this page for Google and comes back, so a brief written while signed out is kept for the trip.
+const BRIEF_KEY = "architect:brief";
+// Set only by Start building, and read once: signing in from the header must not start planning an old brief.
+const RESUME_KEY = "architect:resume";
+const MIN_BRIEF = 10;
+
+function rememberBrief(text: string) {
+  try {
+    if (text) sessionStorage.setItem(BRIEF_KEY, text);
+    else sessionStorage.removeItem(BRIEF_KEY);
+  } catch {
+    // Storage can be blocked; the brief is then simply not carried across sign-in.
+  }
+}
 
 function Stat({ icon: Icon, children }: { icon: typeof Users; children: React.ReactNode }) {
   return (
@@ -138,9 +153,21 @@ export function CreateProject({ briefs, signedIn }: { briefs: string[]; signedIn
   const [error, setError] = useState<string | null>(null);
   // The workspace is rendered on the server, so the wait after a successful create is real and gets its own label.
   const [opening, setOpening] = useState(false);
+  // Leaving for Google: a navigation is in flight, so the button says so instead of looking idle.
+  const [redirecting, setRedirecting] = useState(false);
+  const [hint, setHint] = useState(false);
+  // Assumed until the browser says otherwise, so the server render and the first client render agree.
+  const [canPersist, setCanPersist] = useState(true);
+  const textarea = useRef<HTMLTextAreaElement>(null);
 
   const planning = stage.kind === "planning";
   const busy = planning || stage.kind === "building" || opening;
+  const showHint = hint && brief.trim().length < MIN_BRIEF;
+
+  const updateBrief = (text: string) => {
+    setBrief(text);
+    if (!signedIn) rememberBrief(text);
+  };
 
   const post = async (url: string, body: unknown) => {
     const res = await fetch(url, {
@@ -164,6 +191,58 @@ export function CreateProject({ briefs, signedIn }: { briefs: string[]; signedIn
     }
   };
 
+  const submit = () => {
+    if (busy || redirecting) return;
+    const text = brief.trim();
+    if (text.length < MIN_BRIEF) {
+      setHint(true);
+      textarea.current?.focus();
+      return;
+    }
+    if (signedIn) return void plan(text);
+
+    try {
+      sessionStorage.setItem(BRIEF_KEY, text);
+      sessionStorage.setItem(RESUME_KEY, "1");
+    } catch {
+      // Storage can be blocked; sign-in still works, the brief just isn't carried across.
+    }
+    setRedirecting(true);
+    window.location.assign("/auth/signin?next=%2F");
+  };
+
+  // Back from sign-in. Restored after mount, not as initial state: the server rendered an empty prompt.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(BRIEF_KEY);
+      const resume = sessionStorage.getItem(RESUME_KEY) === "1";
+      // One-shot: removed before anything else, so a refresh or a failed sign-in can't plan later.
+      sessionStorage.removeItem(RESUME_KEY);
+      if (saved) setBrief(saved);
+      if (!signedIn) return;
+      sessionStorage.removeItem(BRIEF_KEY);
+      if (resume && saved && saved.trim().length >= MIN_BRIEF) plan(saved.trim());
+    } catch {
+      setCanPersist(false);
+    }
+    // Once per page load: `signedIn` only changes through a navigation.
+  }, []);
+
+  // "Back" from Google can restore this page as it was left, mid-redirect. Nothing is in flight any more.
+  useEffect(() => {
+    const onShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setRedirecting(false);
+      try {
+        sessionStorage.removeItem(RESUME_KEY);
+      } catch {
+        // Nothing was stored.
+      }
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
+
   const build = async (current: Plan) => {
     setError(null);
     setStage({ kind: "building", plan: current });
@@ -185,9 +264,10 @@ export function CreateProject({ briefs, signedIn }: { briefs: string[]; signedIn
       {(stage.kind === "idle" || planning) && (
         <>
           <form
+            noValidate
             onSubmit={(e) => {
               e.preventDefault();
-              if (!busy && signedIn && brief.trim().length >= 10) plan(brief.trim());
+              submit();
             }}
             className="rounded-2xl border bg-background p-4 shadow-sm"
           >
@@ -195,28 +275,40 @@ export function CreateProject({ briefs, signedIn }: { briefs: string[]; signedIn
               Start with a prompt
             </label>
             <textarea
+              ref={textarea}
               id="project-brief"
               name="brief"
-              required
+              aria-required="true"
+              aria-invalid={showHint || undefined}
+              aria-describedby={showHint ? "project-brief-hint" : undefined}
               rows={3}
               value={brief}
-              disabled={busy}
-              onChange={(e) => setBrief(e.target.value)}
+              disabled={busy || redirecting}
+              onChange={(e) => updateBrief(e.target.value)}
               placeholder="What should your agent system do?"
               className="mt-3 w-full resize-none rounded-lg border bg-muted/30 p-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
             />
+            {showHint && (
+              <p id="project-brief-hint" role="alert" className="mt-2 text-xs text-rose-700">
+                Describe what your agents should do. A sentence or two is enough.
+              </p>
+            )}
             <div className="mt-3 flex items-center justify-between gap-3">
               <span className="text-xs text-muted-foreground">
-                {signedIn ? "Architect plans the system, then you decide to build it." : "Sign in with Google to create a project."}
+                {signedIn
+                  ? "You'll review the agent system before it's built."
+                  : canPersist
+                    ? "You'll sign in with Google first. We'll keep your prompt."
+                    : "You'll sign in with Google first."}
               </span>
               <button
                 type="submit"
-                disabled={busy || !signedIn || brief.trim().length < 10}
+                disabled={busy || redirecting}
                 className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-40"
               >
-                {planning ? <LoaderCircle className="size-4 animate-spin" /> : null}
-                {planning ? "Planning…" : "Start building"}
-                {planning ? null : <ArrowRight className="size-4" />}
+                {planning || redirecting ? <LoaderCircle className="size-4 animate-spin" /> : null}
+                {planning ? "Planning…" : redirecting ? "Opening Google…" : "Start building"}
+                {planning || redirecting ? null : <ArrowRight className="size-4" />}
               </button>
             </div>
           </form>
@@ -226,8 +318,8 @@ export function CreateProject({ briefs, signedIn }: { briefs: string[]; signedIn
               <button
                 key={example}
                 type="button"
-                disabled={busy}
-                onClick={() => setBrief(example)}
+                disabled={busy || redirecting}
+                onClick={() => updateBrief(example)}
                 className="rounded-xl border bg-background p-3 text-left text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
               >
                 <span className="mb-2 block text-foreground">Try a brief</span>
