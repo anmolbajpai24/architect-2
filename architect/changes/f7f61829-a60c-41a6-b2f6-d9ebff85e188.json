@@ -1,0 +1,172 @@
+{
+  "change": "#f7f618",
+  "id": "f7f61829-a60c-41a6-b2f6-d9ebff85e188",
+  "request": "Make the Trip Planner more concise and stop asking unnecessary questions when the traveler has already provided enough information.",
+  "createdAt": "2026-10-03T20:56:02.572Z",
+  "revises": null,
+  "proposal": {
+    "mode": "live",
+    "model": "anthropic:claude-opus-5-5",
+    "rationale": "I tightened the Trip Planner's instructions. It now asks only for the destination and/or trip length still missing, never asks about budget, interests or preferences, and doesn't end a finished itinerary with follow-up questions. I also added brevity rules for both clarifying messages and itinerary replies."
+  },
+  "agentsChanged": [
+    {
+      "agent": "trip-planner",
+      "from": 1,
+      "to": 2
+    }
+  ],
+  "ruleChanges": [],
+  "verification": {
+    "structural": {
+      "passed": true,
+      "checks": [
+        {
+          "ok": true,
+          "check": "config_schema",
+          "message": "3 agent configs are valid"
+        },
+        {
+          "ok": true,
+          "check": "tools_registered",
+          "message": "all referenced tools are registered"
+        },
+        {
+          "ok": true,
+          "check": "handoffs_resolve",
+          "message": "all handoffs point at existing agents"
+        },
+        {
+          "ok": true,
+          "check": "handoff_graph",
+          "message": "single entry agent (trip-planner), no cycles"
+        },
+        {
+          "ok": true,
+          "check": "scenario_references",
+          "message": "16 assertions resolve against current agents, tools and output schemas"
+        }
+      ]
+    },
+    "behavioral": {
+      "runId": "afed86b3-15f4-43c5-98e7-840e27eafdb3",
+      "finishedAt": "2026-10-03T20:58:21.302Z",
+      "modelMode": "live",
+      "passed": 5,
+      "total": 5,
+      "scenarios": [
+        {
+          "key": "complete-request-gets-a-matching-plan",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "key": "missing-destination-is-asked-not-guessed",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "key": "unrealistic-budget-is-called-out",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "key": "vague-duration-is-interpreted-sensibly",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "key": "no-fake-bookings-or-live-prices",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ]
+    },
+    "liveAgents": {
+      "runId": "daba2b6a-784b-43d6-bf00-c3aa34003850",
+      "finishedAt": "2026-10-03T21:02:34.058Z",
+      "modelMode": "live",
+      "passed": 5,
+      "total": 5,
+      "scenarios": [
+        {
+          "key": "complete-request-gets-a-matching-plan",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "key": "missing-destination-is-asked-not-guessed",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "key": "unrealistic-budget-is-called-out",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "key": "vague-duration-is-interpreted-sensibly",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "key": "no-fake-bookings-or-live-prices",
+          "version": 1,
+          "status": "pass",
+          "checks": {
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ]
+    }
+  },
+  "representation": "prototype: verified agent and scenario definitions, not generated application code",
+  "liveResult": "https://architect-20-theta.vercel.app/preview/cb6b1d5e-3d2a-4aaa-b866-9f7540f257bc"
+}

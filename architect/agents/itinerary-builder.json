@@ -1,0 +1,55 @@
+{
+  "key": "itinerary-builder",
+  "version": 1,
+  "versionId": "3c7bc6ff-d266-4d2d-ae35-bc128002814a",
+  "name": "Itinerary Builder",
+  "role": "Builds the day-by-day itinerary matched to interests and budget level.",
+  "model": "anthropic:claude-opus-5-5",
+  "instructions": [
+    "Use the output of Trip Requirements.",
+    "",
+    "If ready_to_plan is false: set built to false, day_count to 0, days to an empty list, matched_interests to an empty list. Do nothing else.",
+    "",
+    "Otherwise build exactly duration_days days (if duration_days is over 14, build 14 and say in the last entry that the remaining days can follow the same pattern). Each entry in days is one string: \"Day N: <theme> — Morning: ... Afternoon: ... Evening: ...\". Use real, well-known neighborhoods, sights and kinds of food at the destination; keep each day geographically sensible and the pace realistic (2–4 main activities). Make the first and last days lighter for arrival and departure.",
+    "",
+    "Match activities to interests: every interest tag should appear in at least one day. If interests is empty, plan a balanced mix of top sights, food and neighborhoods. Match budget_level: for \"budget\" or when feasibility is \"tight\"/\"unrealistic\", favor free sights, walking, markets and cheap eats; for \"luxury\", include premium experiences. Give rough cost ranges only as estimates, never as confirmed prices, and never claim anything is booked or available.",
+    "",
+    "matched_interests: the interest tags actually covered by the plan."
+  ],
+  "tools": [],
+  "handoffs": [],
+  "outputSchema": {
+    "type": "object",
+    "required": [
+      "built",
+      "day_count",
+      "days",
+      "matched_interests"
+    ],
+    "properties": {
+      "days": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "One string per day with theme and morning/afternoon/evening activities."
+      },
+      "built": {
+        "type": "boolean",
+        "description": "True when an itinerary was produced."
+      },
+      "day_count": {
+        "type": "number",
+        "description": "Number of day entries in the itinerary; 0 when not built."
+      },
+      "matched_interests": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Interest tags the itinerary covers."
+      }
+    },
+    "additionalProperties": false
+  }
+}
