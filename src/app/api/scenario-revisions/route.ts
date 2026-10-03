@@ -6,8 +6,8 @@ import { changes } from "@/db/schema";
 import { emit } from "@/events";
 import { draftScenarioRevision, type ScenarioDraft } from "@/scenarios/proposer";
 import { canChangeRule, proposeScenarioRevision } from "@/scenarios/revisions";
-import { claimBusy, getDb, getRuntime } from "@/server/context";
-import { busyResponse, errorResponse } from "@/server/responses";
+import { claimBusy, getDb, projectById } from "@/server/context";
+import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
 
 const Body = z.object({
   changeId: z.string().uuid(),
@@ -16,7 +16,7 @@ const Body = z.object({
 });
 
 /** Drafting the revised rule is one model call made inside the request. */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * "Change the rule", step 1: Architect drafts a revised Scenario from the user's new requirement and stores it as a
@@ -31,6 +31,13 @@ export async function POST(req: Request) {
   const [change] = await db.select().from(changes).where(eq(changes.id, changeId));
   if (!change) return errorResponse("Change not found.", 404);
   if (!canChangeRule(change)) return errorResponse("Only a blocked change can lead to a rule change.", 409);
+
+  let project;
+  try {
+    project = await projectById(db, change.projectId);
+  } catch (err) {
+    return notFoundResponse(err);
+  }
 
   const release = claimBusy("Drafting rule change");
   if (!release) return busyResponse();
@@ -56,7 +63,7 @@ export async function POST(req: Request) {
         scenario,
         request,
         versions: context.live,
-        runtime: getRuntime(),
+        runtime: project.runtime,
         failure,
         config,
       });

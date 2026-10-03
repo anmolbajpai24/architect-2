@@ -7,6 +7,9 @@ import { createFixtureModel, type SimulatorProvider } from "./fixture-model";
 /** fixture: deterministic stand-in models (default). live: the provider model named in the AgentVersion config. */
 export type ModelMode = "fixture" | "live";
 
+/** The provider model a newly created project's agents run on. Each AgentVersion then carries its own. */
+export const DEFAULT_AGENT_MODEL = "anthropic:claude-opus-5-5";
+
 export function resolveModel(spec: string): LanguageModel {
   const [provider, ...rest] = spec.split(":");
   const id = rest.join(":");

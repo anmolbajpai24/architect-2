@@ -4,10 +4,10 @@ import { draftFix, ProposalError, proposerConfig, type Draft } from "@/changes/p
 import { changes } from "@/db/schema";
 import { emit } from "@/events";
 import { agentRuntimeProblem } from "@/server/config";
-import { claimBusy, getDb, getRunOptions, getRuntime, startJob } from "@/server/context";
-import { busyResponse, errorResponse } from "@/server/responses";
+import { claimBusy, getDb, getRunOptions, projectById, startJob } from "@/server/context";
+import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * "Keep the rule → Fix it": Architect drafts a revision of a behaviorally failed change that keeps the
@@ -23,7 +23,13 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
     return errorResponse("Only an unresolved, behaviorally failed change can be fixed.", 409);
   }
 
-  const problem = agentRuntimeProblem();
+  let project;
+  try {
+    project = await projectById(db, failed.projectId);
+  } catch (err) {
+    return notFoundResponse(err);
+  }
+  const problem = agentRuntimeProblem(project.runtime);
   if (problem) return errorResponse(problem, 503);
 
   const release = claimBusy("Drafting fix");
@@ -46,7 +52,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
       editedAgents: Object.keys(failed.proposedVersionIds),
       scenarios: context.scenarios,
       results: context.results,
-      runtime: getRuntime(),
+      runtime: project.runtime,
       config,
     });
   } catch (err) {
@@ -58,6 +64,6 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
   }
 
   const fix = await keepRuleAndFix(db, changeId, draft.edits, draft.proposal);
-  startJob(db, failed.projectId, "Verifying fix", () => verifyChange(db, fix.id, getRunOptions()));
+  startJob(db, failed.projectId, "Verifying fix", () => verifyChange(db, fix.id, getRunOptions(project.runtime)));
   return Response.json({ changeId: fix.id }, { status: 202 });
 }

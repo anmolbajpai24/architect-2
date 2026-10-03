@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ArrowLeft, Boxes, LoaderCircle, Play, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { WorkspaceSnapshot } from "@/server/workspace";
@@ -61,7 +62,7 @@ function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => 
   );
 }
 
-export function Workspace({ initial, initialChangeId = null }: { initial: WorkspaceSnapshot; initialChangeId?: string | null }) {
+export function Workspace({ initial, initialChangeId = null, initialPrompt = null }: { initial: WorkspaceSnapshot; initialChangeId?: string | null; initialPrompt?: string | null }) {
   const api = useWorkspace(initial);
   const { snapshot, events, progress } = api;
   // Nothing is selected at first: the Inspector opens on the project, not on an arbitrary scenario.
@@ -95,12 +96,12 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
   return (
     <div className="flex h-dvh flex-col bg-muted/30 text-foreground">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-5">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <div className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background">
             <Boxes className="size-4" />
           </div>
           <span className="text-sm font-semibold">Architect</span>
-        </div>
+        </Link>
         <span className="text-muted-foreground/50">/</span>
         <span className="text-sm font-medium">{snapshot.project.name}</span>
         <div className="ml-2 hidden md:block">
@@ -113,9 +114,12 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
               {api.busyLabel}…
             </span>
           )}
-          <Button variant="ghost" size="sm" disabled={api.busy} onClick={() => { setOpenChangeId(null); api.reset(); }}>
-            <RotateCcw data-icon="inline-start" /> Reset demo
-          </Button>
+          {/* Only a project backed by a definition in code has a seeded state to go back to. */}
+          {snapshot.project.origin === "definition" && (
+            <Button variant="ghost" size="sm" disabled={api.busy} onClick={() => { setOpenChangeId(null); api.reset(); }}>
+              <RotateCcw data-icon="inline-start" /> Reset demo
+            </Button>
+          )}
           <Button size="sm" disabled={api.busy} onClick={() => api.runScenarios()}>
             <Play data-icon="inline-start" /> Run scenarios
           </Button>
@@ -150,6 +154,7 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
             drafting={api.busyLabel === "Drafting change"}
             openChangeId={openChangeId}
             onPropose={propose}
+            initialPrompt={initialPrompt}
             onOpenChange={setOpenChangeId}
             onViewScenario={() => {
               // The scenario worth looking at is the one that isn't holding, else the first.

@@ -1,14 +1,20 @@
+import type { projects } from "@/db/schema";
 import { laptopAdvisor } from "@/demo/project";
-import { createToolRegistry } from "@/runtime/tool-registry";
+import { createToolRegistry, EMPTY_TOOL_REGISTRY } from "@/runtime/tool-registry";
 import { ConfigError, serverEnv } from "@/server/env";
 import type { ProjectDefinition, ProjectRuntime } from "./types";
 
 /**
  * The projects this server knows how to run, and how one is chosen.
  *
- * Architect is single-project in this phase: `ARCHITECT_PROJECT` names which definition is served, defaulting to
- * the seeded Laptop Advisor reference project. Resolution is pure configuration — no database, no authentication,
- * no accounts — so it is safe to call from anywhere on the server, including metadata generation.
+ * There are two kinds, and the difference is only how much of a project is code. A project whose slug names a
+ * definition here is backed by code: its tools and its deterministic simulator are functions, so they cannot come
+ * out of a database. Every other project was created from a brief and is entirely data — rows in `projects`,
+ * `agents` and `scenarios` — which is what makes the engine's genericity worth anything.
+ *
+ * `ARCHITECT_PROJECT` names the project served when a request doesn't name one, defaulting to the seeded Laptop
+ * Advisor reference project. Choosing a *definition* is pure configuration (no database), so it stays safe to
+ * call from anywhere on the server.
  */
 
 const DEFINITIONS: ProjectDefinition[] = [laptopAdvisor];
@@ -44,4 +50,30 @@ export function toProjectRuntime(definition: ProjectDefinition): ProjectRuntime 
 /** The configured project, ready to run. */
 export function projectRuntime(slug?: string): ProjectRuntime {
   return toProjectRuntime(projectDefinition(slug));
+}
+
+export type ProjectRow = typeof projects.$inferSelect;
+
+/** Whether a persisted project is backed by a definition in code. */
+export function hasDefinition(slug: string): boolean {
+  return DEFINITIONS.some((d) => d.slug === slug);
+}
+
+/**
+ * The runtime of a persisted project.
+ *
+ * A project backed by a definition gets that definition, unchanged — Laptop Advisor keeps its catalog tool and
+ * its simulator. A project created from a brief carries its own facts in its row and gets an honest runtime for
+ * what it actually is: no tools, because nothing could execute them, and no simulator, so Demo mode reports that
+ * it cannot run this project rather than replaying something that was never recorded.
+ */
+export function runtimeFromRow(row: ProjectRow): ProjectRuntime {
+  if (hasDefinition(row.slug)) return toProjectRuntime(projectDefinition(row.slug));
+  return {
+    slug: row.slug,
+    name: row.name,
+    tools: EMPTY_TOOL_REGISTRY,
+    judgeContext: row.judgeContext ?? undefined,
+    responsePath: row.responsePath ?? undefined,
+  };
 }

@@ -31,6 +31,7 @@ function Composer({
   drafting,
   proposerLabel,
   onPropose,
+  initialPrompt,
 }: {
   suggestions: string[];
   placeholder: string | null;
@@ -38,8 +39,9 @@ function Composer({
   drafting: boolean;
   proposerLabel: string;
   onPropose: (intent: string) => Promise<boolean>;
+  initialPrompt?: string | null;
 }) {
-  const [intent, setIntent] = useState("");
+  const [intent, setIntent] = useState(initialPrompt ?? "");
   const submit = async () => {
     if (!intent.trim() || disabled) return;
     if (await onPropose(intent.trim())) setIntent("");
@@ -248,6 +250,7 @@ export function ChangesPanel({
   onPropose,
   onOpenChange,
   onViewScenario,
+  initialPrompt,
 }: {
   snapshot: WorkspaceSnapshot;
   events: WorkspaceEvent[];
@@ -259,10 +262,18 @@ export function ChangesPanel({
   onPropose: (intent: string) => Promise<boolean>;
   onOpenChange: (id: string) => void;
   onViewScenario: () => void;
+  initialPrompt?: string | null;
 }) {
   const [active, ...earlier] = snapshot.changes; // newest first
   return (
     <div className="flex flex-col gap-5">
+      {initialPrompt && (
+        <div className="rounded-xl border border-dashed bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+          <span className="font-medium text-foreground">Brief loaded.</span> This prototype carries it into the existing
+          Architect change workflow. Arbitrary project definitions are not persisted yet, so Laptop Advisor remains the
+          seeded reference workspace.
+        </div>
+      )}
       {active ? (
         <ActiveChange change={active} snapshot={snapshot} progress={progress} onOpen={onOpenChange} />
       ) : (
@@ -276,6 +287,7 @@ export function ChangesPanel({
         drafting={drafting}
         proposerLabel={snapshot.env.proposer.mode === "live" ? modelLabel(snapshot.env.proposer.model) : "the recorded demo proposer"}
         onPropose={onPropose}
+        initialPrompt={initialPrompt}
       />
 
       {!active && <RunSummary protection={protection} onViewScenario={onViewScenario} />}

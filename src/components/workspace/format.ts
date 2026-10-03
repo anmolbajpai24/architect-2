@@ -80,6 +80,12 @@ export function describeEvent(e: WorkspaceEvent, snapshot: WorkspaceSnapshot): {
       const counts = [agents, scenarios].filter(Boolean).join(", ");
       return { text: counts ? `Project seeded: ${counts}` : "Project seeded", tone: "muted" };
     }
+    case "project.created": {
+      const agents = typeof p.agents === "number" ? `${p.agents} agent${p.agents === 1 ? "" : "s"}` : null;
+      const scenarios = typeof p.scenarios === "number" ? `${p.scenarios} scenario${p.scenarios === 1 ? "" : "s"}` : null;
+      const counts = [agents, scenarios].filter(Boolean).join(" and ");
+      return { text: counts ? `Project created from your brief: ${counts}` : "Project created from your brief", tone: "muted" };
+    }
     case "change.drafting":
       return {
         text: p.fix ? "Architect is drafting a fix that keeps the rule" : `Architect is drafting a change: “${p.intent}”`,

@@ -34,6 +34,8 @@ function reduceProgress(p: Progress | null, e: WorkspaceEvent): Progress | null 
 
 /** Server snapshot + live SSE events + the actions the workspace can take. */
 export function useWorkspace(initial: WorkspaceSnapshot) {
+  // Every request says which project it is about: this workspace serves whichever one was opened.
+  const projectId = initial.project.id;
   const [snapshot, setSnapshot] = useState(initial);
   const [events, setEvents] = useState(initial.events);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -42,9 +44,9 @@ export function useWorkspace(initial: WorkspaceSnapshot) {
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const refresh = useCallback(async () => {
-    const res = await fetch("/api/workspace", { cache: "no-store" });
+    const res = await fetch(`/api/workspace?project=${projectId}`, { cache: "no-store" });
     if (res.ok) setSnapshot(await res.json());
-  }, []);
+  }, [projectId]);
 
   // Coalesce bursts of events (a fixture run emits dozens in milliseconds) into one snapshot fetch.
   const scheduleRefresh = useCallback(() => {
@@ -53,7 +55,7 @@ export function useWorkspace(initial: WorkspaceSnapshot) {
   }, [refresh]);
 
   useEffect(() => {
-    const source = new EventSource(`/api/events?after=${initial.lastSeq}`);
+    const source = new EventSource(`/api/events?project=${projectId}&after=${initial.lastSeq}`);
     source.onmessage = (message) => {
       const event = JSON.parse(message.data) as WorkspaceEvent;
       setEvents((prev) => (event.type === "project.seeded" ? [event] : [...prev, event].slice(-300)));
@@ -65,7 +67,7 @@ export function useWorkspace(initial: WorkspaceSnapshot) {
       source.close();
       clearTimeout(refreshTimer.current);
     };
-  }, [initial.lastSeq, scheduleRefresh]);
+  }, [initial.lastSeq, projectId, scheduleRefresh]);
 
   const post = useCallback(
     async <T = Record<string, unknown>>(label: string, url: string, body?: unknown): Promise<T | null> => {
@@ -102,8 +104,9 @@ export function useWorkspace(initial: WorkspaceSnapshot) {
     busyLabel: pending ?? snapshot.busy ?? (runInFlight ? "Running scenarios" : null),
     error,
     dismissError: () => setError(null),
-    runScenarios: () => post("Starting run", "/api/runs"),
-    proposeChange: (intent: string) => post<{ changeId: string }>("Drafting change", "/api/changes", { intent }),
+    runScenarios: () => post("Starting run", `/api/runs?project=${projectId}`),
+    proposeChange: (intent: string) =>
+      post<{ changeId: string }>("Drafting change", `/api/changes?project=${projectId}`, { intent }),
     keepRuleAndFix: (changeId: string) => post<{ changeId: string }>("Drafting fix", `/api/changes/${changeId}/fix`),
     applyChange: (changeId: string) => post("Applying change", `/api/changes/${changeId}/apply`),
     draftRuleChange: (changeId: string, scenarioKey: string, request: string) =>
@@ -114,7 +117,7 @@ export function useWorkspace(initial: WorkspaceSnapshot) {
       post<{ alreadyShipped: boolean; shipment: { prNumber: number; prUrl: string } }>("Shipping to GitHub", `/api/changes/${changeId}/ship`, {
         repository,
       }),
-    reset: () => post("Resetting demo", "/api/reset"),
+    reset: () => post("Resetting demo", `/api/reset?project=${projectId}`),
   };
 }
 

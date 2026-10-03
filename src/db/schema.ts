@@ -16,10 +16,21 @@ import type { AgentConfig, Assertion, ScenarioInput, ScenarioResult } from "@/do
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
+/**
+ * A project Architect runs. Two kinds, one table: a project whose slug matches a definition in
+ * src/projects/registry.ts is backed by code (its tools and deterministic simulator live there), and any other
+ * project was created from a natural-language brief and carries everything it needs in these columns.
+ */
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
+  /** The brief this project was created from. Null for a project backed by a definition in code. */
+  brief: text("brief"),
+  /** One sentence telling the LLM judge what this application is (ProjectDefinition.judgeContext). */
+  judgeContext: text("judge_context"),
+  /** Where the entry agent's user-facing response lives in its output (ProjectDefinition.responsePath). */
+  responsePath: text("response_path"),
   createdAt: createdAt(),
 });
 

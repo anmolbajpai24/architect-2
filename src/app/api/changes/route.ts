@@ -4,13 +4,13 @@ import { draftChange, ProposalError, proposerConfig, type Draft } from "@/change
 import { emit } from "@/events";
 import { loadCurrentVersions } from "@/scenarios/runner";
 import { agentRuntimeProblem } from "@/server/config";
-import { claimBusy, getDb, getProjectId, getRunOptions, getRuntime, startJob } from "@/server/context";
-import { busyResponse, errorResponse } from "@/server/responses";
+import { claimBusy, getDb, getRunOptions, projectSelector, resolveProject, startJob } from "@/server/context";
+import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
 
 const Body = z.object({ intent: z.string().trim().min(1).max(2000) });
 
 /** Drafting is one model call in the request; verifying the draft then runs every scenario in the background. */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * Architect drafts edits for the request (LLM proposer), records them as a Change, then verifies it in the
@@ -21,14 +21,21 @@ export async function POST(req: Request) {
   if (!parsed.success) return errorResponse("Describe the change you want.", 400);
   const { intent } = parsed.data;
 
-  const problem = agentRuntimeProblem();
+  const { db } = await getDb();
+  let project;
+  try {
+    project = await resolveProject(db, projectSelector(req));
+  } catch (err) {
+    return notFoundResponse(err);
+  }
+
+  const problem = agentRuntimeProblem(project.runtime);
   if (problem) return errorResponse(problem, 503);
 
   const release = claimBusy("Drafting change");
   if (!release) return busyResponse();
 
-  const { db } = await getDb();
-  const projectId = await getProjectId(db);
+  const projectId = project.id;
   const config = proposerConfig();
   let draft: Draft;
   try {
@@ -36,7 +43,7 @@ export async function POST(req: Request) {
     draft = await draftChange({
       intent,
       versions: await loadCurrentVersions(db, projectId),
-      runtime: getRuntime(),
+      runtime: project.runtime,
       config,
     });
   } catch (err) {
@@ -48,6 +55,6 @@ export async function POST(req: Request) {
   }
 
   const change = await proposeChange(db, { projectId, intent, edits: draft.edits, proposal: draft.proposal });
-  startJob(db, projectId, "Verifying change", () => verifyChange(db, change.id, getRunOptions()));
+  startJob(db, projectId, "Verifying change", () => verifyChange(db, change.id, getRunOptions(project.runtime)));
   return Response.json({ changeId: change.id }, { status: 202 });
 }

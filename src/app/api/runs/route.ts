@@ -1,23 +1,28 @@
 import { loadCurrentVersions, runScenarios } from "@/scenarios/runner";
 import { agentRuntimeProblem } from "@/server/config";
-import { getDb, getProjectId, getRunOptions, startJob } from "@/server/context";
-import { busyResponse, errorResponse } from "@/server/responses";
+import { getDb, getRunOptions, projectSelector, resolveProject, startJob } from "@/server/context";
+import { busyResponse, errorResponse, notFoundResponse } from "@/server/responses";
 
 /** A run on live models calls a provider once per agent per scenario; see docs/DEPLOYMENT.md on this ceiling. */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** Runs every scenario against the live agents, in the background. */
-export async function POST() {
-  const problem = agentRuntimeProblem();
-  if (problem) return errorResponse(problem, 503);
+export async function POST(req: Request) {
   const { db } = await getDb();
-  const projectId = await getProjectId(db);
-  const started = startJob(db, projectId, "Running scenarios", async () =>
+  let project;
+  try {
+    project = await resolveProject(db, projectSelector(req));
+  } catch (err) {
+    return notFoundResponse(err);
+  }
+  const problem = agentRuntimeProblem(project.runtime);
+  if (problem) return errorResponse(problem, 503);
+  const started = startJob(db, project.id, "Running scenarios", async () =>
     runScenarios(db, {
-      projectId,
-      versions: await loadCurrentVersions(db, projectId),
+      projectId: project.id,
+      versions: await loadCurrentVersions(db, project.id),
       trigger: "manual",
-      ...getRunOptions(),
+      ...getRunOptions(project.runtime),
     }),
   );
   return started ? Response.json({ ok: true }, { status: 202 }) : busyResponse();

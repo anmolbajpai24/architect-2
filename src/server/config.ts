@@ -2,6 +2,7 @@ import { proposerConfig } from "@/changes/proposer";
 import { githubStatus, type GitHubStatus } from "@/github/config";
 import { hasCredentials, judgeModelSpec } from "@/runtime/models";
 import type { DbKind } from "@/db/client";
+import type { ProjectRuntime } from "@/projects/types";
 import { getModes, getRuntime } from "./context";
 import { isManagedDeployment, serverEnv } from "./env";
 
@@ -22,10 +23,10 @@ export type ConfigReport = {
   problems: string[];
 };
 
-export function configReport(): ConfigReport {
+/** @param project the project this report is about; the configured one when a caller has none in hand. */
+export function configReport(project: ProjectRuntime = getRuntime()): ConfigReport {
   const env = serverEnv();
   const { mode, judge } = getModes();
-  const project = getRuntime();
   const proposer = proposerConfig();
   const judgeModel = judgeModelSpec();
   const anyProviderKey = Boolean(env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY);
@@ -73,11 +74,11 @@ export function configReport(): ConfigReport {
  * project with no deterministic simulator. Returned to the user instead of letting the run fail halfway, and
  * worded for the product: the variable names stay in the Environment panel.
  */
-export function agentRuntimeProblem(): string | null {
+export function agentRuntimeProblem(project: ProjectRuntime): string | null {
   const { mode } = getModes();
   const env = serverEnv();
   if (mode === "fixture") {
-    return getRuntime().simulator
+    return project.simulator
       ? null
       : "This project has no Demo mode behavior to replay, so its agents can only run on real models. Open Environment for details.";
   }

@@ -3,7 +3,14 @@ import { eq } from "drizzle-orm";
 import { openDb, type Db } from "@/db/client";
 import { projects } from "@/db/schema";
 import { emit } from "@/events";
-import { configuredProjectSlug, projectDefinition, projectRuntime } from "@/projects/registry";
+import {
+  configuredProjectSlug,
+  hasDefinition,
+  projectDefinition,
+  projectRuntime,
+  runtimeFromRow,
+  type ProjectRow,
+} from "@/projects/registry";
 import type { ProjectRuntime } from "@/projects/types";
 import type { ModelMode } from "@/runtime/models";
 import type { JudgeMode } from "@/scenarios/assertions";
@@ -45,15 +52,69 @@ export function getRuntime(slug: string = configuredProjectSlug()): ProjectRunti
  * Creates the configured project's rows if they are absent. An explicit bootstrap, not something every request
  * implies: the in-process database starts empty on each cold start, so the seeded demo still appears by itself.
  */
-export async function bootstrapProject(db: Db, opts?: { reset?: boolean }): Promise<string> {
-  return projectDefinition().seed(db, opts);
+export async function bootstrapProject(db: Db, opts?: { reset?: boolean; slug?: string }): Promise<string> {
+  return projectDefinition(opts?.slug).seed(db, { reset: opts?.reset });
 }
 
-/** The configured project's id, looked up by slug. Bootstrapped on first use if the database has no such row. */
-export async function getProjectId(db: Db): Promise<string> {
+// ---- Which project a request is about ------------------------------------------------------------------------
+
+/** A persisted project, with everything the engine needs to run it. */
+export type ResolvedProject = { id: string; slug: string; name: string; row: ProjectRow; runtime: ProjectRuntime };
+
+/** A request named a project this server doesn't have. */
+export class ProjectNotFound extends Error {}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Memoized for projects backed by a definition, since building a tool registry isn't free; free otherwise. */
+function runtimeFor(row: ProjectRow): ProjectRuntime {
+  return hasDefinition(row.slug) ? getRuntime(row.slug) : runtimeFromRow(row);
+}
+
+const resolved = (row: ProjectRow): ResolvedProject => ({
+  id: row.id,
+  slug: row.slug,
+  name: row.name,
+  row,
+  runtime: runtimeFor(row),
+});
+
+async function findProject(db: Db, selector: string): Promise<ProjectRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(projects)
+    .where(UUID.test(selector) ? eq(projects.id, selector) : eq(projects.slug, selector));
+  return row;
+}
+
+/**
+ * The project a request is about: the one it names, by id or slug, or else the configured one — which is
+ * bootstrapped if this database has never seen it. Every route resolves its project this way, so a project
+ * created from a brief and the seeded reference project arrive at the engine on identical terms.
+ */
+export async function resolveProject(db: Db, selector?: string | null): Promise<ResolvedProject> {
+  const wanted = selector?.trim();
+  if (wanted) {
+    const row = await findProject(db, wanted);
+    if (!row) throw new ProjectNotFound("That project doesn't exist on this server.");
+    return resolved(row);
+  }
   const slug = configuredProjectSlug();
-  const [row] = await db.select({ id: projects.id }).from(projects).where(eq(projects.slug, slug));
-  return row ? row.id : bootstrapProject(db);
+  const row = (await findProject(db, slug)) ?? (await findProject(db, await bootstrapProject(db)));
+  if (!row) throw new ProjectNotFound(`The configured project "${slug}" could not be opened.`);
+  return resolved(row);
+}
+
+/** The project a change, revision or run already belongs to. */
+export async function projectById(db: Db, id: string): Promise<ResolvedProject> {
+  const row = await findProject(db, id);
+  if (!row) throw new ProjectNotFound("That project doesn't exist on this server.");
+  return resolved(row);
+}
+
+/** `?project=` — a project id or slug. Absent means the configured project. */
+export function projectSelector(req: Request): string | null {
+  return new URL(req.url).searchParams.get("project");
 }
 
 export function getModes(): { mode: ModelMode; judge: JudgeMode } {
@@ -66,8 +127,8 @@ export function getModes(): { mode: ModelMode; judge: JudgeMode } {
 }
 
 /** Model modes plus the project to run: the options every run and verification takes. */
-export function getRunOptions(): { mode: ModelMode; judge: JudgeMode; runtime: ProjectRuntime } {
-  return { ...getModes(), runtime: getRuntime() };
+export function getRunOptions(runtime: ProjectRuntime): { mode: ModelMode; judge: JudgeMode; runtime: ProjectRuntime } {
+  return { ...getModes(), runtime };
 }
 
 /**

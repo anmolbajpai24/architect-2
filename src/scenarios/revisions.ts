@@ -26,6 +26,12 @@ async function getRevision(db: Db, revisionId: string) {
   return { revision, scenario };
 }
 
+/** The project a drafted revision belongs to, so a route can resolve its runtime before applying it. */
+export async function revisionProjectId(db: Db, revisionId: string): Promise<string> {
+  const { scenario } = await getRevision(db, revisionId);
+  return scenario.projectId;
+}
+
 /** Whether a change can still be resolved by changing the rule (it hasn't been fixed instead). */
 export function canChangeRule(change: { status: string; resolution: string | null }) {
   return change.status === "behavioral_failed" && change.resolution !== "keep_rule_fix";

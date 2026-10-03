@@ -43,6 +43,13 @@
       "when": 1791040554772,
       "tag": "0005_catalog_project_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791046200065,
+      "tag": "0006_project_brief",
+      "breakpoints": true
     }
   ]
 }

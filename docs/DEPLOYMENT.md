@@ -136,11 +136,21 @@ The deployed app opens straight into the seeded Laptop Advisor project, which is
 structure: agents, tools, scenarios and their assertions are rows, and `src/seed/` is the only place that knows
 about laptops.
 
-**Function limits.** Every route that can start model work declares `maxDuration = 60`, the limit available on
-every plan. A verification run makes one provider call per agent per scenario (9 for the seeded project, plus
-judge calls), which fits comfortably in fixture mode and can exceed 60s on live models with a slow provider. If a
-run is cut off at the limit, the job dies without recording a result and the run stays unfinished in the UI; raise
-`maxDuration` in the route files on a plan that allows more. Nothing is lost — rerun it.
+**Function limits.** Every route that can start model work declares `maxDuration = 300`. With fluid compute
+(on by default) 300s is Vercel's *default* maximum duration and the ceiling on every plan, Hobby included — Pro
+and Enterprise allow up to 800s. The earlier value of 60 was the universal limit before fluid compute and is now
+below the platform default, so it only shortened these routes.
+
+Two things run long enough to care. Planning a project from a brief is one model call that writes a whole project
+description — around 5,500 output tokens, about a minute on `claude-opus-5-5`. A verification run makes one
+provider call per agent per scenario (9 for the seeded project, plus judge calls, and more for a larger generated
+one), which is instant in fixture mode and minutes on live models. If either is cut off at the limit the job dies
+without recording a result and the run stays unfinished in the UI. Nothing is lost — rerun it.
+
+Active CPU billing pauses while a function waits on I/O, so a route that spends its time waiting on a provider
+costs little more at 300s than at 60s. One caveat the platform documents: a request that sends no bytes for
+minutes can still be dropped by an HTTP/1.1 client or an intermediary. Planning holds the connection open without
+streaming, so a very slow provider could lose the connection before the limit does.
 
 ## 7. GitHub shipping (optional)
 

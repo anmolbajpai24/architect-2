@@ -17,11 +17,12 @@ import {
 } from "@/db/schema";
 import { Assertion, type AgentConfig, type ScenarioInput, type ScenarioResult, type ToolResultSummary } from "@/domain/schemas";
 import { proposerConfig } from "@/changes/proposer";
+import { hasDefinition } from "@/projects/registry";
 import { loadScenarios } from "@/scenarios/runner";
 import { githubStatus, type GitHubStatus } from "@/github/config";
 import { checkShipGate } from "@/shipping/gate";
 import { configReport } from "./config";
-import { busyJob, getModes, getRuntime } from "./context";
+import { busyJob, getModes, type ResolvedProject } from "./context";
 
 export type VersionStatus = "live" | "proposed" | "verified" | "rejected" | "superseded";
 
@@ -148,6 +149,10 @@ export type WorkspaceSnapshot = {
     tools: WorkspaceTool[];
     /** Where the entry agent's user-facing response lives in its output. Null means "find it generically". */
     responsePath: string | null;
+    /** "definition": backed by code in src/projects (seedable, may have tools). "brief": created from a brief. */
+    origin: "definition" | "brief";
+    /** The brief this project was created from, when it was. */
+    brief: string | null;
   };
   env: {
     db: "postgres" | "pglite";
@@ -182,7 +187,13 @@ export function toWorkspaceEvent(e: typeof events.$inferSelect): WorkspaceEvent 
 }
 
 /** Everything the workspace renders, in one read. Live progress arrives separately over SSE. */
-export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres" | "pglite"): Promise<WorkspaceSnapshot> {
+export async function getWorkspace(
+  db: Db,
+  resolved: Pick<ResolvedProject, "id" | "slug" | "runtime">,
+  dbKind: "postgres" | "pglite",
+): Promise<WorkspaceSnapshot> {
+  const projectId = resolved.id;
+  const runtime = resolved.runtime;
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   const agentRows = await db.select().from(agents).where(eq(agents.projectId, projectId)).orderBy(agents.createdAt);
   const versionRows = agentRows.length
@@ -238,7 +249,6 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
   const changeStatus = new Map(changeRows.map((c) => [c.id, c.status]));
   const proposer = proposerConfig();
   // Example requests and placeholder copy are the project's, not the engine's.
-  const runtime = getRuntime();
   const ruleChanges = runtime.suggestedRuleChanges?.(proposer.mode) ?? {};
   const handoffTargets = new Set<string>();
 
@@ -293,8 +303,10 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
         resultSummary: runtime.tools.resultSummaries[name] ?? null,
       })),
       responsePath: runtime.responsePath ?? null,
+      origin: hasDefinition(project.slug) ? "definition" : "brief",
+      brief: project.brief,
     },
-    env: { db: dbKind, ...getModes(), proposer, github: githubStatus(), problems: configReport().problems },
+    env: { db: dbKind, ...getModes(), proposer, github: githubStatus(), problems: configReport(runtime).problems },
     busy: busyJob(),
     suggestedIntents: runtime.suggestedIntents?.(proposer.mode) ?? [],
     agents: workspaceAgents,

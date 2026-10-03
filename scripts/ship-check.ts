@@ -95,7 +95,7 @@ try {
   await rejects(ship(fix.id, { github: { status: unconfigured, provider: null } }), 503, "3. ship is rejected when GitHub is not configured");
   await rejects(ship(fix.id, { repository: "someone/else" }), 400, "ship is rejected for a repository outside the allowlist");
   check(fake.calls.length === 0, "no GitHub call was made by any rejected attempt");
-  const snapshot = await getWorkspace(db, projectId, "pglite");
+  const snapshot = await getWorkspace(db, { id: projectId, slug: laptopAdvisor.slug, runtime: opts.runtime }, "pglite");
   const fixView = snapshot.changes.find((x) => x.id === fix.id);
   check(fixView?.ship?.ready === true && !fixView.shipment, "the workspace shows the applied change as ready to ship");
   check(snapshot.changes.find((x) => x.id === persuasive.id)?.ship === null, "the workspace offers no ship gate for the blocked change");
@@ -177,7 +177,7 @@ ${content}`));
   const stored = JSON.stringify([await db.select().from(events).where(eq(events.projectId, projectId)), await db.select().from(changeShipments)]);
   const committed = JSON.stringify([...files.values(), pr?.body, pr?.title]);
   check(!stored.includes(TOKEN) && !committed.includes(TOKEN), "the token is not in events, shipments, committed files or the PR");
-  const after = await getWorkspace(db, projectId, "pglite");
+  const after = await getWorkspace(db, { id: projectId, slug: laptopAdvisor.slug, runtime: opts.runtime }, "pglite");
   const view = after.changes.find((x) => x.id === fix.id)?.shipment;
   check(view?.prNumber === 42 && view.branch === branch && !JSON.stringify(after).includes(TOKEN), "the workspace shows the PR and branch, never the token");
 

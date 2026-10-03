@@ -1,6 +1,7 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 import { events } from "@/db/schema";
-import { getDb, getProjectId } from "@/server/context";
+import { getDb, projectSelector, resolveProject } from "@/server/context";
+import { notFoundResponse } from "@/server/responses";
 import { toWorkspaceEvent } from "@/server/workspace";
 
 export const maxDuration = 60;
@@ -22,6 +23,13 @@ const pollMs = (kind: string) => (kind === "postgres" ? 500 : 250);
 export async function GET(req: Request) {
   const { db, kind } = await getDb();
   const url = new URL(req.url);
+  // Resolved once to fail fast on an unknown project, then re-resolved by slug while streaming.
+  let project;
+  try {
+    project = await resolveProject(db, projectSelector(req));
+  } catch (err) {
+    return notFoundResponse(err);
+  }
   let last = Number(req.headers.get("last-event-id") ?? url.searchParams.get("after") ?? 0) || 0;
   const encoder = new TextEncoder();
   const interval = pollMs(kind);
@@ -40,8 +48,8 @@ export async function GET(req: Request) {
       const deadline = Date.now() + STREAM_MS;
       let idle = 0;
       while (!closed && Date.now() < deadline) {
-        // Re-resolved each tick so a demo reset (new project id) is followed transparently.
-        const projectId = await getProjectId(db);
+        // Re-resolved by slug each tick so a demo reset (which creates a new project id) is followed transparently.
+        const projectId = (await resolveProject(db, project.slug)).id;
         const rows = await db
           .select()
           .from(events)

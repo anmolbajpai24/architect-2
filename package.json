@@ -15,7 +15,7 @@
     "ship:check": "tsx scripts/ship-check.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/db-migrate.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --incremental false"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.71",
