@@ -1,5 +1,5 @@
-import { GitPullRequestArrow, History, MessageSquare, ShieldCheck, Sparkles, Store, Wrench } from "lucide-react";
-import { summarizeToolResult } from "@/domain/format";
+import { Bot, GitPullRequestArrow, History, MessageSquare, ShieldCheck, Sparkles, Wrench } from "lucide-react";
+import { entryResponse, summarizeToolResult } from "@/domain/format";
 import type { ScenarioResult } from "@/domain/schemas";
 import type {
   ScenarioVersionStatus,
@@ -31,7 +31,7 @@ export function Reply({ text }: { text: string }) {
   return (
     <div className="flex gap-2">
       <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
-        <Store className="size-3.5" />
+        <Bot className="size-3.5" />
       </div>
       <div className="rounded-xl rounded-tl-sm border bg-background px-3 py-2 text-[13px] leading-relaxed">{text}</div>
     </div>
@@ -46,6 +46,7 @@ export function ScenarioInspector({
   agents,
   changes,
   tools,
+  responsePath,
   onOpenChange,
 }: {
   scenario: WorkspaceScenario;
@@ -56,13 +57,15 @@ export function ScenarioInspector({
   changes: WorkspaceChange[];
   /** The project's registered tools, used to summarize tool results without assuming any result shape. */
   tools: WorkspaceTool[];
+  /** Where this project's entry agent puts its user-facing response (`project.responsePath`). */
+  responsePath: string | null;
   onOpenChange: (id: string) => void;
 }) {
   // A result only lines up with these assertions if it was judged against this version of the rule.
   const judgedVersion = result?.scenarioVersion;
   const sameRule = !result?.scenarioVersionId || result.scenarioVersionId === scenario.versionId;
   const entryKey = agents.find((a) => a.entry)?.key ?? agents[0]?.key ?? "";
-  const reply = (result?.trace.agents[entryKey]?.output as { reply?: string } | undefined)?.reply;
+  const reply = entryResponse(result?.trace.agents[entryKey]?.output, responsePath);
   const agentName = (key: string) => agents.find((a) => a.key === key)?.name ?? key;
   const traceAgents = result ? Object.values(result.trace.agents) : [];
   const shown = sameRule ? result?.assertions : undefined;
@@ -95,7 +98,7 @@ export function ScenarioInspector({
         </p>
       </header>
 
-      <Section title="Customer experience">
+      <Section title="Observed behavior">
         <div className="flex justify-end">
           <div className="flex max-w-[90%] gap-2 rounded-xl rounded-tr-sm bg-foreground px-3 py-2 text-[13px] leading-relaxed text-background">
             <MessageSquare className="mt-0.5 size-3.5 shrink-0 opacity-60" />
@@ -106,7 +109,7 @@ export function ScenarioInspector({
           <Reply text={reply} />
         ) : (
           <p className="text-xs text-muted-foreground">
-            Run the scenarios to see the reply this customer would get from the live agents.
+            Run the scenarios to see how the live agents respond to this input.
           </p>
         )}
       </Section>

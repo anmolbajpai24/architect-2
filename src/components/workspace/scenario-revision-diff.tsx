@@ -34,7 +34,7 @@ const tone = {
   kept: "text-muted-foreground",
 };
 
-/** Before/after of a scenario revision: the rule's wording, its customer message, and its checks. */
+/** Before/after of a scenario revision: the rule's wording, its input message, and its checks. */
 export function ScenarioRevisionDiff({ before, after }: { before: RuleContent; after: RuleContent }) {
   const beforeKeys = before.assertions.map(checkKey);
   const afterKeys = after.assertions.map(checkKey);
@@ -53,7 +53,7 @@ export function ScenarioRevisionDiff({ before, after }: { before: RuleContent; a
     <div className="space-y-3">
       <TextChange label="Name" before={before.name} after={after.name} />
       <TextChange label="Rule" before={before.intent} after={after.intent} />
-      <TextChange label="Customer message" before={before.input.message} after={after.input.message} />
+      <TextChange label="Input message" before={before.input.message} after={after.input.message} />
       <div className="space-y-1">
         <div className="text-[11px] font-medium text-muted-foreground">
           Checks · {counts.removed} removed, {counts.added} added, {counts.kept} kept

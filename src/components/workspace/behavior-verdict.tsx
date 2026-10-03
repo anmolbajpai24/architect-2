@@ -2,7 +2,7 @@
 
 import { ArrowRight, CircleCheck, CircleDashed, CircleX, FilePen, Hammer, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { describeAssertionPlainly } from "@/domain/format";
+import { describeAssertionPlainly, entryResponse } from "@/domain/format";
 import type { ScenarioResult } from "@/domain/schemas";
 import type { WorkspaceSnapshot } from "@/server/workspace";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import { Reply } from "./scenario-inspector";
 /**
  * The product's turning point: the configuration is fine and the behavior is broken. Structural validity and
  * behavioral correctness are shown as two separate verdicts, because confusing them is exactly the mistake
- * Architect exists to prevent — and the consequence is shown as the customer would have experienced it.
+ * Architect exists to prevent — and the consequence is shown as the entry agent's own response.
  */
 
 function VerdictHalf({ label, ok, word }: { label: string; ok: boolean | null; word: string }) {
@@ -76,19 +76,21 @@ function ExpectedActual({ expected, actual }: { expected: string; actual: string
   );
 }
 
-/** One failing scenario, told as what the customer experienced and what the rule required. */
+/** One failing scenario, told as the behavior that was observed and what the rule required. */
 function BrokenBehavior({
   result,
   intent,
   entryAgentKey,
+  responsePath,
   agentName,
 }: {
   result: ScenarioResult;
   intent: string | undefined;
   entryAgentKey: string;
+  responsePath: string | null;
   agentName: (key: string) => string;
 }) {
-  const reply = (result.trace.agents[entryAgentKey]?.output as { reply?: string } | undefined)?.reply;
+  const reply = entryResponse(result.trace.agents[entryAgentKey]?.output, responsePath);
   const failed = result.assertions.filter((a) => a.status === "fail" || a.status === "error");
   const deciding = failed.find((a) => a.assertion.type === "output");
   const decidingAgent = deciding?.assertion.type === "output" ? deciding.assertion.agent : undefined;
@@ -104,12 +106,12 @@ function BrokenBehavior({
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
           <MessageSquare className="size-3" />
-          The customer would have heard:
+          The entry agent replied:
         </div>
         {reply ? (
           <Reply text={reply} />
         ) : (
-          <p className="text-xs text-muted-foreground">The agents produced no customer-visible reply.</p>
+          <p className="text-xs text-muted-foreground">The entry agent produced no response.</p>
         )}
       </div>
 
@@ -144,7 +146,8 @@ function BrokenBehavior({
   );
 }
 
-export function CustomerImpact({
+/** What the application actually did, for every scenario this change broke. */
+export function ObservedBehavior({
   failures,
   snapshot,
 }: {
@@ -161,6 +164,7 @@ export function CustomerImpact({
           result={f}
           intent={snapshot.scenarios.find((s) => s.key === f.scenarioKey)?.intent}
           entryAgentKey={entry}
+          responsePath={snapshot.project.responsePath}
           agentName={agentName}
         />
       ))}

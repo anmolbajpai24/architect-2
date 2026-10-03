@@ -73,8 +73,13 @@ export function describeEvent(e: WorkspaceEvent, snapshot: WorkspaceSnapshot): {
   const p = e.payload;
   const scenarioName = (key: unknown) => snapshot.scenarios.find((s) => s.key === key)?.name ?? String(key);
   switch (e.type) {
-    case "project.seeded":
-      return { text: "Demo project seeded: 3 agents at v1, 3 scenarios", tone: "muted" };
+    case "project.seeded": {
+      // The counts are the project's own, so they come from the seed event rather than from this line.
+      const agents = typeof p.agents === "number" ? `${p.agents} agent${p.agents === 1 ? "" : "s"} at v1` : null;
+      const scenarios = typeof p.scenarios === "number" ? `${p.scenarios} scenario${p.scenarios === 1 ? "" : "s"}` : null;
+      const counts = [agents, scenarios].filter(Boolean).join(", ");
+      return { text: counts ? `Project seeded: ${counts}` : "Project seeded", tone: "muted" };
+    }
     case "change.drafting":
       return {
         text: p.fix ? "Architect is drafting a fix that keeps the rule" : `Architect is drafting a change: “${p.intent}”`,

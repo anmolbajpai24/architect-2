@@ -146,6 +146,8 @@ export type WorkspaceSnapshot = {
     placeholders: { changeRequest: string | null; ruleChange: string | null };
     /** The project's registered tools. The UI renders tool results from this, never from a known shape. */
     tools: WorkspaceTool[];
+    /** Where the entry agent's user-facing response lives in its output. Null means "find it generically". */
+    responsePath: string | null;
   };
   env: {
     db: "postgres" | "pglite";
@@ -290,6 +292,7 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
         description: runtime.tools.descriptions[name],
         resultSummary: runtime.tools.resultSummaries[name] ?? null,
       })),
+      responsePath: runtime.responsePath ?? null,
     },
     env: { db: dbKind, ...getModes(), proposer, github: githubStatus(), problems: configReport().problems },
     busy: busyJob(),

@@ -10,8 +10,8 @@ import type { Progress } from "./use-workspace";
 
 /**
  * The center column while a change is in flight: what Architect is evaluating right now, how far it got, and the
- * one thing to do next. It is deliberately a summary — the Verdict drawer stays the place where the customer
- * reply, the expected/actual pairs, the assertions and the resolution choices live.
+ * one thing to do next. It is deliberately a summary — the Verdict drawer stays the place where the entry
+ * agent's response, the expected/actual pairs, the assertions and the resolution choices live.
  */
 
 type Tone = "running" | "good" | "bad" | "rule";
@@ -152,7 +152,7 @@ export function ActiveChange({
           eyebrow: "Behavior broken",
           // Name what broke; the ledger above already carries the count.
           headline: brokeNames || `${failing} scenario${failing === 1 ? "" : "s"} failing`,
-          body: "The customer experience has changed. Decide whether the agent is wrong or the requirement is.",
+          body: "Application behavior has changed. Decide whether the agent is wrong or the requirement is.",
           action: { label: "Review verdict", onClick: () => onOpen(change.id) },
         };
       case "verified":

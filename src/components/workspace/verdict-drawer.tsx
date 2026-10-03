@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import type { WorkspaceChange, WorkspaceSnapshot } from "@/server/workspace";
 import { cn } from "@/lib/utils";
 import { AssertionRow } from "./assertion-row";
-import { CustomerImpact, ResolutionFork, VerificationVerdict } from "./behavior-verdict";
+import { ObservedBehavior, ResolutionFork, VerificationVerdict } from "./behavior-verdict";
 import { agentName, versionNumber } from "./changes-panel";
 import { Disclosure } from "./disclosure";
 import { modelLabel, shortId } from "./format";
@@ -326,7 +326,7 @@ function VerdictBody({
               </span>{" "}
               <span className="text-muted-foreground">{change.explanation.summary}</span>
             </p>
-            <CustomerImpact failures={failedScenarios} snapshot={snapshot} />
+            <ObservedBehavior failures={failedScenarios} snapshot={snapshot} />
             {change.resolution === "keep_rule_fix" ? (
               <Callout tone="good" icon={CheckCheck} title="You chose: Keep the rule → Fix it">
                 {child ? (

@@ -24,6 +24,11 @@ export type ProjectDefinition = {
   simulator?: SimulatorProvider;
   /** One sentence telling the LLM judge what this application is. Optional: the judge works without it. */
   judgeContext?: string;
+  /**
+   * Dot path to the entry agent's user-facing response inside its structured output, e.g. "reply". The UI shows
+   * the response through this, so no field name is hardcoded; absent, the first non-empty string field is used.
+   */
+  responsePath?: string;
   /** Example change requests offered in the composer. */
   suggestedIntents?: (mode: "fixture" | "live") => string[];
   /** Example rule changes, per scenario key, offered when changing a rule. */

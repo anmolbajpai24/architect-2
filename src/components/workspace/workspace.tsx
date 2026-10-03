@@ -187,6 +187,7 @@ export function Workspace({ initial, initialChangeId = null }: { initial: Worksp
               agents={snapshot.agents}
               changes={snapshot.changes}
               tools={snapshot.project.tools}
+              responsePath={snapshot.project.responsePath}
               onOpenChange={setOpenChangeId}
             />
           ) : selectedAgent ? (

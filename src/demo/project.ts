@@ -21,6 +21,9 @@ export const laptopAdvisor: ProjectDefinition = {
   judgeContext:
     "The application is the AI shopping assistant of a laptop store: it reads a customer's message and recommends a laptop from the store's catalog.",
 
+  /** The Store Advisor answers in `reply`; the engine learns that from here, not from its own code. */
+  responsePath: "reply",
+
   /** Offline, only the scripted demo request can be drafted; live, a few more examples are worth offering. */
   suggestedIntents: (mode) =>
     mode === "fixture"

@@ -69,6 +69,23 @@ function at(value: unknown, path: string): unknown {
   }, value);
 }
 
+/** The first non-empty string among a value's own fields, for outputs that declare no response path. */
+function firstString(value: unknown): unknown {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return undefined;
+  return Object.values(value as Record<string, unknown>).find((v) => typeof v === "string" && v.trim() !== "");
+}
+
+/**
+ * The entry agent's user-facing response, read out of its structured output. Where it lives is the project's to
+ * declare (`ProjectDefinition.responsePath`, e.g. "reply"); without a declaration the first non-empty string
+ * field is used, the way `summarizeToolResult` falls back to the first list it finds. No field is assumed here.
+ */
+export function entryResponse(output: unknown, path?: string | null): string | undefined {
+  const value = path ? at(output, path) : firstString(output);
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
 /** The first array found among a value's own fields, for results that declare no summary. */
 function firstList(value: unknown): unknown[] | undefined {
   if (Array.isArray(value)) return value;
