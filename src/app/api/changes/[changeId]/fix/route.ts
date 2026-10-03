@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { keepRuleAndFix, loadFixContext, verifyChange } from "@/changes/change";
+import { keepRuleAndFix, loadBlockedChangeContext, verifyChange } from "@/changes/change";
 import { draftFix, ProposalError, proposerConfig, type Draft } from "@/changes/proposer";
 import { changes } from "@/db/schema";
 import { emit } from "@/events";
@@ -15,7 +15,8 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
   const { db } = await getDb();
   const [failed] = await db.select().from(changes).where(eq(changes.id, changeId));
   if (!failed) return errorResponse("Change not found.", 404);
-  if (failed.status !== "behavioral_failed" || failed.resolution) {
+  // Allowed after a rule change too: a change that still fails under the new rule can be fixed against it.
+  if (failed.status !== "behavioral_failed" || failed.resolution === "keep_rule_fix") {
     return errorResponse("Only an unresolved, behaviorally failed change can be fixed.", 409);
   }
 
@@ -31,7 +32,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ changeId: str
       type: "change.drafting",
       payload: { intent: failed.intent, fix: true, mode: config.mode, model: config.model },
     });
-    const context = await loadFixContext(db, changeId);
+    const context = await loadBlockedChangeContext(db, changeId);
     draft = await draftFix({
       intent: failed.intent,
       live: context.live,

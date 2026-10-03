@@ -259,10 +259,10 @@ export async function keepRuleAndFix(
 }
 
 /**
- * Everything needed to revise a behaviorally failed change: what is live, what was proposed, and how the
- * proposal failed (from its verification run).
+ * Everything needed to resolve a behaviorally failed change (fix it, or change the rule): what is live, what was
+ * proposed, and how the proposal failed (from its verification run).
  */
-export async function loadFixContext(db: Db, failedChangeId: string) {
+export async function loadBlockedChangeContext(db: Db, failedChangeId: string) {
   const failed = await getChange(db, failedChangeId);
   const live = await loadCurrentVersions(db, failed.projectId);
   const blocked = await candidateVersions(db, failed);

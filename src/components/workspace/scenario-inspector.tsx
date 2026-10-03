@@ -1,8 +1,12 @@
-import { MessageSquare, ShieldCheck, Store, Wrench } from "lucide-react";
+import { GitPullRequestArrow, History, MessageSquare, ShieldCheck, Sparkles, Store, Wrench } from "lucide-react";
 import type { ScenarioResult } from "@/domain/schemas";
-import type { WorkspaceAgent, WorkspaceScenario } from "@/server/workspace";
+import type { ScenarioVersionStatus, WorkspaceAgent, WorkspaceChange, WorkspaceScenario } from "@/server/workspace";
+import { cn } from "@/lib/utils";
 import { AssertionRow } from "./assertion-row";
+import { modelLabel, shortId } from "./format";
 import { JsonBlock } from "./json-block";
+import { RelativeTime } from "./relative-time";
+import { ScenarioRevisionDiff } from "./scenario-revision-diff";
 import { StatusIcon, statusLabel } from "./status";
 import type { DisplayStatus } from "./use-workspace";
 
@@ -32,13 +36,20 @@ export function ScenarioInspector({
   result,
   runLabel,
   agents,
+  changes,
+  onOpenChange,
 }: {
   scenario: WorkspaceScenario;
   status: DisplayStatus;
   result: ScenarioResult | undefined;
   runLabel: string;
   agents: WorkspaceAgent[];
+  changes: WorkspaceChange[];
+  onOpenChange: (id: string) => void;
 }) {
+  // A result only lines up with these assertions if it was judged against this version of the rule.
+  const judgedVersion = result?.scenarioVersion;
+  const sameRule = !result?.scenarioVersionId || result.scenarioVersionId === scenario.versionId;
   const reply = (result?.trace.agents["store-advisor"]?.output as { reply?: string } | undefined)?.reply;
   const agentName = (key: string) => agents.find((a) => a.key === key)?.name ?? key;
   const traceAgents = result ? Object.values(result.trace.agents) : [];
@@ -49,6 +60,9 @@ export function ScenarioInspector({
         <div className="flex items-center gap-2">
           <StatusIcon status={status} className="size-5" />
           <h3 className="text-base font-semibold leading-tight">{scenario.name}</h3>
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-[10.5px] text-emerald-700">
+            v{scenario.version}
+          </span>
         </div>
         <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-2.5 text-xs leading-snug text-emerald-900">
           <ShieldCheck className="size-4 shrink-0" />
@@ -75,9 +89,14 @@ export function ScenarioInspector({
       <Section title={`Assertions (${scenario.assertions.length})`}>
         <div className="-mx-1 space-y-0.5">
           {scenario.assertions.map((a, i) => (
-            <AssertionRow key={i} assertion={a} result={result?.assertions[i]} />
+            <AssertionRow key={i} assertion={a} result={sameRule ? result?.assertions[i] : undefined} />
           ))}
         </div>
+        {!sameRule && (
+          <p className="text-[11px] text-amber-700">
+            The latest run judged v{judgedVersion} of this rule, so its results aren&apos;t shown against v{scenario.version}.
+          </p>
+        )}
       </Section>
 
       <Section title="Trace">
@@ -122,6 +141,78 @@ export function ScenarioInspector({
           </div>
         )}
       </Section>
+
+      <RuleHistory scenario={scenario} changes={changes} onOpenChange={onOpenChange} />
     </div>
+  );
+}
+
+const versionTone: Record<ScenarioVersionStatus, string> = {
+  live: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  proposed: "border-indigo-200 bg-indigo-50 text-indigo-700",
+  superseded: "border-border bg-muted text-muted-foreground",
+  discarded: "border-border bg-background text-muted-foreground line-through",
+};
+
+/** Every version of the rule, with who asked for it and why. Older versions stay readable and diffable. */
+function RuleHistory({
+  scenario,
+  changes,
+  onOpenChange,
+}: {
+  scenario: WorkspaceScenario;
+  changes: WorkspaceChange[];
+  onOpenChange: (id: string) => void;
+}) {
+  return (
+    <Section title={`Rule history (${scenario.versions.length})`}>
+      <div className="space-y-2">
+        {scenario.versions.map((v) => {
+          const base = scenario.versions.find((x) => x.id === v.basedOnVersionId);
+          const change = changes.find((c) => c.id === v.changeId);
+          return (
+            <div key={v.id} className="rounded-xl border bg-background p-3">
+              <div className="flex items-center gap-2">
+                <span className={cn("rounded-full border px-2 py-0.5 font-mono text-[10.5px]", versionTone[v.status])}>
+                  v{v.version} · {v.status}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-xs font-medium">{v.name}</span>
+                <RelativeTime iso={v.createdAt} className="text-[11px] text-muted-foreground" />
+              </div>
+              {v.request ? (
+                <p className="mt-2 text-xs italic leading-relaxed text-muted-foreground">
+                  <History className="mr-1 inline size-3" />
+                  Changed at your request: “{v.request}”
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">Seeded baseline rule.</p>
+              )}
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                {change && (
+                  <button type="button" onClick={() => onOpenChange(change.id)} className="inline-flex items-center gap-1 hover:text-foreground">
+                    <GitPullRequestArrow className="size-3" /> from blocked change #{shortId(change.id)}
+                  </button>
+                )}
+                {v.proposal && (
+                  <span className="inline-flex items-center gap-1">
+                    <Sparkles className="size-3" /> drafted by {v.proposal.mode === "live" ? modelLabel(v.proposal.model) : "fixture proposer"}
+                  </span>
+                )}
+              </div>
+              {base && (
+                <details className="group mt-2">
+                  <summary className="cursor-pointer list-none text-[11px] font-medium text-muted-foreground hover:text-foreground">
+                    <span className="inline-block transition-transform group-open:rotate-90">›</span> Compare with v{base.version}
+                  </summary>
+                  <div className="mt-2">
+                    <ScenarioRevisionDiff before={base} after={v} />
+                  </div>
+                </details>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Section>
   );
 }

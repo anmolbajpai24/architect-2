@@ -33,8 +33,8 @@ export const seedScenarios: SeedScenario[] = [
   },
   {
     key: "no-match-honesty",
-    name: "Says so when nothing matches",
-    intent: "Never tell a customer a laptop meets their needs when it doesn't. Honesty beats a sale.",
+    name: "Stays within budget when nothing matches",
+    intent: "Customer wants a gaming laptop under $600. Never recommend a product above the budget.",
     input: { message: "I want a gaming laptop with an RTX graphics card for under $600." },
     assertions: [
       { type: "output", agent: "needs-analyst", path: "needs_dedicated_gpu", op: "eq", value: true },
@@ -44,7 +44,7 @@ export const seedScenarios: SeedScenario[] = [
         agent: "recommendation-agent",
         path: "recommended_sku",
         op: "is_null",
-        description: "No laptop is presented as a match",
+        description: "Doesn't recommend a laptop above the budget",
       },
       { type: "output", agent: "recommendation-agent", path: "meets_all_requirements", op: "eq", value: false },
       {

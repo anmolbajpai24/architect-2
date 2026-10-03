@@ -126,6 +126,18 @@ const RULES = `Rules:
 
 // ---- Calling the model -----------------------------------------------------------------------------------
 
+/** The model a proposer calls: the fixture stand-in, or the configured provider model if its key is present. */
+export function resolveProposerModel(config: ProposerConfig, fixture: () => LanguageModel): LanguageModel {
+  if (config.mode === "fixture") return fixture();
+  if (!hasCredentials(config.model)) {
+    const provider = config.model.split(":")[0];
+    throw new ProposalError(
+      `No API key for ${provider}. Set ${provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY"}, or ARCHITECT_PROPOSER=fixture for the offline demo.`,
+    );
+  }
+  return resolveModel(config.model);
+}
+
 async function propose(
   kind: "draft" | "fix",
   config: ProposerConfig,
@@ -134,17 +146,7 @@ async function propose(
   prompt: string,
 ): Promise<Draft> {
   const agentKeys = Object.keys(versions) as [string, ...string[]];
-  let model: LanguageModel;
-  if (config.mode === "fixture") {
-    model = createFixtureProposerModel(kind);
-  } else if (!hasCredentials(config.model)) {
-    const provider = config.model.split(":")[0];
-    throw new ProposalError(
-      `No API key for ${provider}. Set ${provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY"}, or ARCHITECT_PROPOSER=fixture for the offline demo.`,
-    );
-  } else {
-    model = resolveModel(config.model);
-  }
+  const model = resolveProposerModel(config, () => createFixtureProposerModel(kind));
 
   let raw: RawProposal;
   try {

@@ -81,6 +81,25 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - UI env: `ARCHITECT_MODEL_MODE=live`, `ARCHITECT_JUDGE=live`. PGlite state is per server process.
 - Pure helpers for client code live in `src/domain/format.ts`; never import AI SDK or DB modules into components.
 
+## Scenario revisions ("Change the rule", Phase 4)
+
+- Two resolutions of a blocked Change, kept distinct everywhere (UI, data, events):
+  KEEP THE RULE = fix the implementation (child Change, agents edited, `resolution: keep_rule_fix`);
+  CHANGE THE RULE = update the requirement (new scenario version, agents untouched, `resolution: change_rule`).
+- Scenarios mirror agents: `scenarios` holds identity + `currentVersionId`; `scenario_versions` is immutable content
+  (`name`, `intent`, `input`, `assertions`) + provenance (`basedOnVersionId`, `changeId`, `request`, `proposal`) and
+  `appliedAt` / `discardedAt`. `loadScenarios` returns the live version; run results record `scenarioVersionId`.
+- Scenario proposer (`src/scenarios/proposer.ts`): separate from the Change proposer, same live/fixture switch.
+  Structured output limited to tool/output/judge + existing operators, real agents/tools; rejects judge-only rules,
+  bad values, unknown paths (via `checkStructure`), identical rules; `representable: false` → explanation.
+  Fixture (`src/scenarios/fixture-proposer.ts`) knows only the scripted $600 → $900 request.
+- Flow (`src/scenarios/revisions.ts`): draft = proposed version (live rule untouched) → user reviews diff → explicit
+  apply (stale + structural guards, pointer moves, change marked `change_rule` and set back to `proposed`) → background
+  `verifyRuleChange`: all scenarios vs live agents, then `verifyChange` on the blocked change. Failures stay failures.
+- Routes: `POST /api/scenario-revisions`, `POST /api/scenario-revisions/:id/apply`, `POST .../:id/discard`.
+- The demo stays in USD (owner's decision): the no-match scenario is "gaming laptop under $600, never recommend above
+  the budget"; the scripted rule change is "allow up to $900 when nothing suitable exists under $600".
+
 ## Phases
 
 - Phase 1 (done): headless vertical slice — catalog seed, agents + immutable versions, scenarios,
@@ -89,7 +108,8 @@ multiple sandbox providers, custom auth, RBAC, billing, collaboration, unnecessa
 - Phase 2 (done): workspace UI — Scenario strip, Scenario inspector, Agent inspector, Change/Verdict drawer,
   regression flow over SSE.
 - LLM change proposer (done): replaces the demo-only lookup; verification flow unchanged.
-- Not yet: "Change the rule", GitHub, E2B, auth, full docs.
+- Phase 4 (done): "Change the rule" with versioned scenarios and an LLM Scenario proposer.
+- Not yet: GitHub, E2B, auth, full docs.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

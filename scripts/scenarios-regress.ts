@@ -5,7 +5,7 @@
  * explanation → "Keep the rule → Fix it" → fix passes and is applied → scenarios pass.
  */
 import { and, count, eq } from "drizzle-orm";
-import { applyChange, keepRuleAndFix, loadFixContext, proposeChange, verifyChange } from "@/changes/change";
+import { applyChange, keepRuleAndFix, loadBlockedChangeContext, proposeChange, verifyChange } from "@/changes/change";
 import { draftChange, draftFix, proposerConfig, type ProposerConfig } from "@/changes/proposer";
 import { openDb, type Db } from "@/db/client";
 import { agents, agentVersions, events } from "@/db/schema";
@@ -68,7 +68,7 @@ try {
   );
 
   heading('3. User chooses "Keep the rule → Fix it"');
-  const ctx = await loadFixContext(db, change.id);
+  const ctx = await loadBlockedChangeContext(db, change.id);
   const fixDraft = await draftFix({
     intent: change.intent,
     live: ctx.live,

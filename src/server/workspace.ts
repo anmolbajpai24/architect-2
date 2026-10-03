@@ -7,13 +7,16 @@ import {
   events,
   projects,
   runs,
+  scenarioVersions,
   type ChangeExplanation,
   type ChangeProposal,
   type ChangeStatus,
+  type ScenarioProposal,
   type StructuralCheck,
 } from "@/db/schema";
-import type { AgentConfig, Assertion, ScenarioInput, ScenarioResult } from "@/domain/schemas";
+import { Assertion, type AgentConfig, type ScenarioInput, type ScenarioResult } from "@/domain/schemas";
 import { proposerConfig, suggestedIntents } from "@/changes/proposer";
+import { FIXTURE_RULE_CHANGES } from "@/scenarios/fixture-proposer";
 import { loadScenarios } from "@/scenarios/runner";
 import { busyJob, getModes } from "./context";
 
@@ -38,13 +41,38 @@ export type WorkspaceAgent = {
   versions: WorkspaceVersion[]; // newest first
 };
 
-export type WorkspaceScenario = {
+/** live: the rule in force. proposed: drafted, awaiting the user. superseded: was live once. discarded: never applied. */
+export type ScenarioVersionStatus = "live" | "proposed" | "superseded" | "discarded";
+
+export type WorkspaceScenarioVersion = {
   id: string;
-  key: string;
+  version: number;
+  status: ScenarioVersionStatus;
   name: string;
   intent: string;
   input: ScenarioInput;
   assertions: Assertion[];
+  basedOnVersionId: string | null;
+  changeId: string | null;
+  request: string | null;
+  proposal: ScenarioProposal | null;
+  appliedAt: string | null;
+  createdAt: string;
+};
+
+/** The live rule's content at the top level, plus the full history (newest first). */
+export type WorkspaceScenario = {
+  id: string;
+  key: string;
+  versionId: string;
+  version: number;
+  name: string;
+  intent: string;
+  input: ScenarioInput;
+  assertions: Assertion[];
+  versions: WorkspaceScenarioVersion[];
+  /** Rule changes the user can suggest in fixture mode (empty in live mode: anything goes). */
+  suggestedRuleChanges: string[];
 };
 
 export type WorkspaceChange = {
@@ -147,6 +175,18 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
     .orderBy(desc(events.seq))
     .limit(80);
   const scenarioRows = await loadScenarios(db, projectId);
+  const scenarioVersionRows = scenarioRows.length
+    ? await db
+        .select()
+        .from(scenarioVersions)
+        .where(
+          inArray(
+            scenarioVersions.scenarioId,
+            scenarioRows.map((s) => s.id),
+          ),
+        )
+        .orderBy(desc(scenarioVersions.version))
+    : [];
   const [latestEvent] = await db.select({ seq: events.seq }).from(events).orderBy(desc(events.seq)).limit(1);
 
   const changeStatus = new Map(changeRows.map((c) => [c.id, c.status]));
@@ -198,10 +238,33 @@ export async function getWorkspace(db: Db, projectId: string, dbKind: "postgres"
     scenarios: scenarioRows.map((s) => ({
       id: s.id,
       key: s.key,
+      versionId: s.versionId,
+      version: s.version,
       name: s.name,
       intent: s.intent,
       input: s.input,
       assertions: s.assertions,
+      versions: scenarioVersionRows
+        .filter((v) => v.scenarioId === s.id)
+        .map(
+          (v): WorkspaceScenarioVersion => ({
+            id: v.id,
+            version: v.version,
+            status:
+              v.id === s.versionId ? "live" : v.discardedAt ? "discarded" : v.appliedAt ? "superseded" : "proposed",
+            name: v.name,
+            intent: v.intent,
+            input: v.input,
+            assertions: Assertion.array().parse(v.assertions),
+            basedOnVersionId: v.basedOnVersionId,
+            changeId: v.changeId,
+            request: v.request,
+            proposal: v.proposal,
+            appliedAt: iso(v.appliedAt),
+            createdAt: v.createdAt.toISOString(),
+          }),
+        ),
+      suggestedRuleChanges: proposer.mode === "fixture" ? (FIXTURE_RULE_CHANGES[s.key] ?? []) : [],
     })),
     changes: changeRows.map((c) => ({
       id: c.id,

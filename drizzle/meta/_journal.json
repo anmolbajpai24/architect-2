@@ -15,6 +15,20 @@
       "when": 1790988455928,
       "tag": "0001_change_proposal",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790989714147,
+      "tag": "0002_scenario_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790989724865,
+      "tag": "0003_scenario_drop_inline_content",
+      "breakpoints": true
     }
   ]
 }

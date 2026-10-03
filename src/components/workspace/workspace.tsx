@@ -154,6 +154,8 @@ export function Workspace({ initial }: { initial: WorkspaceSnapshot }) {
               result={streaming ? undefined : latestRun?.results?.find((r) => r.scenarioKey === selectedScenario.key)}
               runLabel={context.text}
               agents={snapshot.agents}
+              changes={snapshot.changes}
+              onOpenChange={setOpenChangeId}
             />
           ) : selectedAgent ? (
             <AgentInspector agent={selectedAgent} snapshot={snapshot} onOpenChange={setOpenChangeId} />

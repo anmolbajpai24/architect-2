@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { agents, agentVersions, catalogItems, projects, scenarios } from "@/db/schema";
+import { agents, agentVersions, catalogItems, projects, scenarios, scenarioVersions } from "@/db/schema";
 import { emit } from "@/events";
 import { seedAgents } from "./agents";
 import { catalog } from "./catalog";
@@ -34,7 +34,19 @@ export async function seedDemo(db: Db, { reset = false } = {}): Promise<string> 
       await tx.update(agents).set({ currentVersionId: version.id }).where(eq(agents.id, agent.id));
     }
 
-    await tx.insert(scenarios).values(seedScenarios.map((s) => ({ ...s, projectId: project.id })));
+    // now() is constant inside a transaction, so give each scenario its own timestamp to keep their order stable.
+    const seededAt = Date.now();
+    for (const [i, { key, ...content }] of seedScenarios.entries()) {
+      const [scenario] = await tx
+        .insert(scenarios)
+        .values({ projectId: project.id, key, createdAt: new Date(seededAt + i) })
+        .returning();
+      const [version] = await tx
+        .insert(scenarioVersions)
+        .values({ scenarioId: scenario.id, version: 1, ...content, appliedAt: new Date() })
+        .returning();
+      await tx.update(scenarios).set({ currentVersionId: version.id }).where(eq(scenarios.id, scenario.id));
+    }
 
     await emit(tx, {
       projectId: project.id,

@@ -61,6 +61,17 @@ export const TOOL_DESCRIPTIONS: Record<(typeof TOOL_NAMES)[number], string> = {
   search_catalog: "Search the laptop store's in-stock catalog. Returns at most 5 matches, cheapest first.",
 };
 
+/** Shape of each tool's result, for anything that writes "result.*" assertion paths. */
+export const TOOL_RESULT_SHAPES: Record<(typeof TOOL_NAMES)[number], string> = {
+  search_catalog:
+    "{ count: number, items: [{ sku: string, name: string, price_usd: number, ram_gb: number, gpu: string, dedicated_gpu: boolean, weight_kg: number, use_cases: string[] }] }",
+};
+
+/** JSON Schema of each tool's input, for anything that writes "args.*" assertion paths. */
+export const TOOL_INPUT_SCHEMAS: Record<(typeof TOOL_NAMES)[number], unknown> = {
+  search_catalog: z.toJSONSchema(SearchCatalogInput),
+};
+
 export function buildTools(db: Db, names: string[]): ToolSet {
   const registry: ToolSet = {
     search_catalog: tool({

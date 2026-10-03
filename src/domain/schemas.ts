@@ -74,6 +74,9 @@ export type AssertionResult = {
 export type ScenarioResult = {
   scenarioId: string;
   scenarioKey: string;
+  /** The scenario version (rule) this result was judged against. Absent on runs from before versioning. */
+  scenarioVersionId?: string;
+  scenarioVersion?: number;
   name: string;
   status: "pass" | "fail" | "error";
   assertions: AssertionResult[];

@@ -106,6 +106,10 @@ export function useWorkspace(initial: WorkspaceSnapshot) {
     proposeChange: (intent: string) => post<{ changeId: string }>("Drafting change", "/api/changes", { intent }),
     keepRuleAndFix: (changeId: string) => post<{ changeId: string }>("Drafting fix", `/api/changes/${changeId}/fix`),
     applyChange: (changeId: string) => post("Applying change", `/api/changes/${changeId}/apply`),
+    draftRuleChange: (changeId: string, scenarioKey: string, request: string) =>
+      post<{ revisionId: string }>("Drafting rule change", "/api/scenario-revisions", { changeId, scenarioKey, request }),
+    applyRuleChange: (revisionId: string) => post("Applying new rule", `/api/scenario-revisions/${revisionId}/apply`),
+    discardRuleChange: (revisionId: string) => post("Discarding draft", `/api/scenario-revisions/${revisionId}/discard`),
     reset: () => post("Resetting demo", "/api/reset"),
   };
 }

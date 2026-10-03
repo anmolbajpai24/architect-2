@@ -116,7 +116,7 @@ function ChangeCard({
       <div className="flex items-center gap-2">
         <GitPullRequestArrow className="size-3.5 text-muted-foreground" />
         <span className="font-mono text-[11px] text-muted-foreground">#{shortId(change.id)}</span>
-        <ChangeStatusPill status={change.status} resolved={Boolean(change.resolution)} />
+        <ChangeStatusPill status={change.status} resolution={change.resolution} />
         <RelativeTime iso={change.createdAt} className="ml-auto text-[11px] text-muted-foreground" />
       </div>
       <p className="mt-2 text-[13px] leading-snug">“{change.intent}”</p>

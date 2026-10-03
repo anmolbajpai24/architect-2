@@ -81,7 +81,14 @@ export function ScenarioStrip({
               <div className="flex items-start gap-2">
                 <StatusIcon status={status} className="mt-0.5" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-medium leading-snug">{s.name}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-[13px] font-medium leading-snug">{s.name}</span>
+                    {s.version > 1 && (
+                      <span className="shrink-0 rounded-full border border-indigo-200 bg-indigo-50 px-1.5 font-mono text-[10px] text-indigo-700">
+                        v{s.version} · rule changed
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-0.5 flex items-start gap-1 text-xs leading-snug text-muted-foreground">
                     <ShieldCheck className="mt-px size-3 shrink-0" />
                     <span className="line-clamp-2">{s.intent}</span>

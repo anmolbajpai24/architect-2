@@ -53,7 +53,19 @@ export function describeEvent(e: WorkspaceEvent, snapshot: WorkspaceSnapshot): {
     case "change.verified":
       return { text: "Change verified: safe to apply", tone: "good" };
     case "change.resolved":
-      return { text: "Resolution chosen: Keep the rule → Fix it", tone: "default" };
+      return p.resolution === "change_rule"
+        ? { text: "Resolution chosen: Change the rule (the change is re-verified under the new rule)", tone: "default" }
+        : { text: "Resolution chosen: Keep the rule → Fix it", tone: "default" };
+    case "scenario.revision_drafting":
+      return { text: `Architect is drafting a rule change for ${scenarioName(p.scenario)}: “${p.request}”`, tone: "muted" };
+    case "scenario.revision_draft_failed":
+      return { text: `No rule change drafted: ${p.message}`, tone: "bad" };
+    case "scenario.revision_proposed":
+      return { text: `Rule change drafted for ${scenarioName(p.scenario)} (v${p.version}), awaiting your review`, tone: "default" };
+    case "scenario.revision_discarded":
+      return { text: `Rule change draft v${p.version} for ${scenarioName(p.scenario)} discarded`, tone: "muted" };
+    case "scenario.revised":
+      return { text: `Rule changed: ${scenarioName(p.scenario)} v${p.fromVersion} → v${p.toVersion}`, tone: "default" };
     case "change.applied":
       return { text: "Change applied to the live agents", tone: "good" };
     case "job.failed":

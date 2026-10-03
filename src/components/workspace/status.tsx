@@ -36,12 +36,15 @@ const changeTones: Record<ChangeStatus, { label: string; className: string }> = 
   applied: { label: "Applied", className: "border-emerald-300 bg-emerald-600 text-white" },
 };
 
-export function ChangeStatusPill({ status, resolved }: { status: ChangeStatus; resolved?: boolean }) {
+const resolutionLabels: Record<string, string> = { keep_rule_fix: "fixed", change_rule: "rule changed" };
+
+export function ChangeStatusPill({ status, resolution }: { status: ChangeStatus; resolution?: string | null }) {
   const tone = changeTones[status];
+  const suffix = resolution ? resolutionLabels[resolution] : undefined;
   return (
     <span className={cn(pill, tone.className)}>
       {status === "proposed" && <LoaderCircle className="size-3 animate-spin" />}
-      {resolved ? `${tone.label} · fixed` : tone.label}
+      {suffix ? `${tone.label} · ${suffix}` : tone.label}
     </span>
   );
 }

@@ -1,6 +1,6 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { agents, agentVersions, runs, scenarios } from "@/db/schema";
+import { agents, agentVersions, runs, scenarios, scenarioVersions } from "@/db/schema";
 import { Assertion, type ScenarioResult, type VersionSet } from "@/domain/schemas";
 import { emit } from "@/events";
 import type { ModelMode } from "@/runtime/models";
@@ -17,10 +17,28 @@ export async function loadCurrentVersions(db: Db, projectId: string): Promise<Ve
   return Object.fromEntries(rows.map((r) => [r.key, { versionId: r.versionId, config: r.config }]));
 }
 
+/** The project's live rules: each scenario's current version. */
 export async function loadScenarios(db: Db, projectId: string) {
-  const rows = await db.select().from(scenarios).where(eq(scenarios.projectId, projectId)).orderBy(scenarios.createdAt);
+  const rows = await db
+    .select({
+      id: scenarios.id,
+      key: scenarios.key,
+      createdAt: scenarios.createdAt,
+      versionId: scenarioVersions.id,
+      version: scenarioVersions.version,
+      name: scenarioVersions.name,
+      intent: scenarioVersions.intent,
+      input: scenarioVersions.input,
+      assertions: scenarioVersions.assertions,
+    })
+    .from(scenarios)
+    .innerJoin(scenarioVersions, eq(scenarios.currentVersionId, scenarioVersions.id))
+    .where(eq(scenarios.projectId, projectId))
+    .orderBy(scenarios.createdAt);
   return rows.map((s) => ({ ...s, assertions: Assertion.array().parse(s.assertions) }));
 }
+
+export type LoadedScenario = Awaited<ReturnType<typeof loadScenarios>>[number];
 
 export type RunOptions = {
   projectId: string;
@@ -73,7 +91,16 @@ export async function runScenarios(db: Db, opts: RunOptions) {
         : assertions.some((r) => r.status === "fail")
           ? "fail"
           : "pass";
-    results.push({ scenarioId: scenario.id, scenarioKey: scenario.key, name: scenario.name, status, assertions, trace });
+    results.push({
+      scenarioId: scenario.id,
+      scenarioKey: scenario.key,
+      scenarioVersionId: scenario.versionId,
+      scenarioVersion: scenario.version,
+      name: scenario.name,
+      status,
+      assertions,
+      trace,
+    });
     await ev("scenario.finished", { scenario: scenario.key, status, error: trace.error ?? null });
   }
 

@@ -50,7 +50,7 @@ function VersionCard({
           <span className="min-w-0 flex-1 leading-snug">
             <span className="font-mono text-muted-foreground">#{shortId(change.id)}</span> “{change.intent}”
           </span>
-          <ChangeStatusPill status={change.status} resolved={Boolean(change.resolution)} />
+          <ChangeStatusPill status={change.status} resolution={change.resolution} />
         </button>
       ) : (
         <p className="mt-2 text-xs text-muted-foreground">Seeded baseline.</p>

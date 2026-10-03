@@ -1,15 +1,16 @@
 "use client";
 
-import { Ban, CheckCheck, CornerDownRight, Hammer, LoaderCircle, Rocket, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CheckCheck, CornerDownRight, FilePen, Hammer, LoaderCircle, Rocket, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { WorkspaceChange, WorkspaceSnapshot } from "@/server/workspace";
 import { cn } from "@/lib/utils";
 import { AssertionRow } from "./assertion-row";
 import { agentName, versionNumber } from "./changes-panel";
 import { modelLabel, shortId } from "./format";
 import { InstructionDiff } from "./instruction-diff";
+import { RuleChangePanel } from "./rule-change-panel";
 import { Reply } from "./scenario-inspector";
 import { ChangeStatusPill, StatusIcon } from "./status";
 import type { Progress, WorkspaceApi } from "./use-workspace";
@@ -73,26 +74,100 @@ function Callout({ tone, icon: Icon, title, children }: { tone: "good" | "bad"; 
   );
 }
 
+/** The rule change that resolved a change: the applied scenario revision drafted from it, and what it replaced. */
+function appliedRuleChange(snapshot: WorkspaceSnapshot, changeId: string) {
+  for (const scenario of snapshot.scenarios) {
+    const revision = scenario.versions.find((v) => v.changeId === changeId && v.appliedAt);
+    if (revision) return { scenario, revision, previous: scenario.versions.find((v) => v.id === revision.basedOnVersionId) };
+  }
+  return undefined;
+}
+
+/** Reports, separately, how the blocked change and the live agents fare under the new rule. */
+function RuleChangeOutcome({
+  change,
+  snapshot,
+  ruleChange,
+}: {
+  change: WorkspaceChange;
+  snapshot: WorkspaceSnapshot;
+  ruleChange: NonNullable<ReturnType<typeof appliedRuleChange>>;
+}) {
+  const { scenario, revision, previous } = ruleChange;
+  const liveRun = snapshot.runs.find((r) => !r.changeId && r.results?.some((x) => x.scenarioVersionId === revision.id));
+  const liveResult = liveRun?.results?.find((x) => x.scenarioVersionId === revision.id);
+  const changeOutcome = change.status === "proposed" ? "running" : change.status === "behavioral_failed" || change.status === "structural_failed" ? "fail" : "pass";
+  const liveOutcome = liveResult?.status ?? "running";
+  const word = { pass: "passes", fail: "fails", error: "errored", running: "verifying…" } as const;
+
+  return (
+    <div className="space-y-2.5 rounded-xl border border-indigo-200 bg-indigo-50/40 p-3.5">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">You changed the rule</div>
+      <div className="text-sm font-semibold">
+        {scenario.name}{" "}
+        <span className="font-mono text-xs font-normal text-muted-foreground">
+          v{previous?.version ?? "?"} → v{revision.version}
+        </span>
+      </div>
+      {revision.request && <p className="text-xs italic leading-relaxed text-muted-foreground">“{revision.request}”</p>}
+      <div className="space-y-1.5 rounded-lg bg-background p-2.5">
+        <div className="text-[11px] font-medium text-muted-foreground">Under the new rule</div>
+        <div className="flex items-center gap-2 text-xs">
+          <StatusIcon status={changeOutcome} className="size-3.5" />
+          <span className="flex-1">This change</span>
+          <span className={cn("font-medium", changeOutcome === "fail" && "text-rose-700", changeOutcome === "pass" && "text-emerald-700")}>
+            {word[changeOutcome]}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <StatusIcon status={liveOutcome} className="size-3.5" />
+          <span className="flex-1">Live agents</span>
+          <span className={cn("font-medium", liveOutcome === "fail" && "text-rose-700", liveOutcome === "pass" && "text-emerald-700")}>
+            {word[liveOutcome]}
+          </span>
+        </div>
+        {liveOutcome === "fail" && (
+          <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">
+            The agents that are live right now don&apos;t meet the new rule. That&apos;s a real failure, shown in the scenario strip,
+            and it stays until a verified change that meets the rule is applied.
+          </p>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        The previous rule (v{previous?.version ?? "?"}) stays in the scenario&apos;s history.
+      </p>
+    </div>
+  );
+}
+
 function VerdictBody({
   change,
   snapshot,
   progress,
   api,
   onOpenChange,
+  onChangeRule,
 }: {
   change: WorkspaceChange;
   snapshot: WorkspaceSnapshot;
   progress: Progress | null;
   api: WorkspaceApi;
   onOpenChange: (id: string) => void;
+  onChangeRule: () => void;
 }) {
-  const run = snapshot.runs.find((r) => r.changeId === change.id && r.results);
-  const live = progress && progress.changeId === change.id && !run ? progress : null;
+  // While this change's run is streaming (e.g. re-verification under a new rule), show live progress, not the old run.
+  const live = progress && progress.changeId === change.id && !progress.finished ? progress : null;
+  const latestRun = snapshot.runs.find((r) => r.changeId === change.id);
+  const run = !live && latestRun?.results ? latestRun : undefined;
   const parent = snapshot.changes.find((c) => c.id === change.parentChangeId);
   const child = snapshot.changes.find((c) => c.parentChangeId === change.id);
   const structuralOk = change.structural?.every((c) => c.ok);
   const failedScenarios = run?.results?.filter((r) => r.status !== "pass") ?? [];
   const protectedIntent = snapshot.scenarios.find((s) => s.key === failedScenarios[0]?.scenarioKey)?.intent;
+  const ruleChange = change.resolution === "change_rule" ? appliedRuleChange(snapshot, change.id) : undefined;
+  const pendingDraft = snapshot.scenarios
+    .flatMap((s) => s.versions)
+    .find((v) => v.status === "proposed" && v.changeId === change.id);
 
   const agentsChanged = Object.entries(change.proposedVersionIds).map(([key, id]) => {
     const agent = snapshot.agents.find((a) => a.key === key);
@@ -233,12 +308,17 @@ function VerdictBody({
             The proposed configuration doesn&apos;t hold together, so it was not run against the scenarios.
           </Callout>
         )}
+        {ruleChange && <RuleChangeOutcome change={change} snapshot={snapshot} ruleChange={ruleChange} />}
         {change.status === "behavioral_failed" && change.explanation && (
           <>
-            <Callout tone="bad" icon={ShieldAlert} title="Blocked: this change breaks a protected behavior">
+            <Callout
+              tone="bad"
+              icon={ShieldAlert}
+              title={ruleChange ? "Still blocked under the new rule" : "Blocked: this change breaks a protected behavior"}
+            >
               {change.explanation.summary}
             </Callout>
-            {change.resolution ? (
+            {change.resolution === "keep_rule_fix" ? (
               <Callout tone="good" icon={CheckCheck} title="You chose: Keep the rule → Fix it">
                 {child ? (
                   <button type="button" className="underline underline-offset-2" onClick={() => onOpenChange(child.id)}>
@@ -251,12 +331,13 @@ function VerdictBody({
             ) : (
               <div className="grid gap-2">
                 <div className="rounded-xl border-2 border-foreground/80 p-3.5">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Hammer className="size-4" /> Keep the rule → Fix it
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Keep the rule</div>
+                  <div className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
+                    <Hammer className="size-4" /> Fix the implementation
                   </div>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Keep protecting “{protectedIntent}”, and revise the change so it still delivers what you asked for
-                    without breaking that rule.
+                    Fix the implementation to satisfy the existing requirement: “{protectedIntent}”. Architect revises the
+                    agent change; the scenario stays as it is.
                   </p>
                   <Button
                     className="mt-3 w-full"
@@ -269,19 +350,19 @@ function VerdictBody({
                     Keep the rule → Fix it
                   </Button>
                 </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="rounded-xl border border-dashed p-3.5 opacity-60">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        <Ban className="size-4" /> Change the rule
-                      </div>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        Update the scenario because the behavior it protects is no longer wanted.
-                      </p>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>Not available in this build.</TooltipContent>
-                </Tooltip>
+                <div className="rounded-xl border-2 border-indigo-300 bg-indigo-50/30 p-3.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">Change the rule</div>
+                  <div className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
+                    <FilePen className="size-4" /> Update the requirement
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Update the requirement because you changed your mind. The scenario gets a new version you review before
+                    it applies; this change&apos;s agents stay exactly as proposed.
+                  </p>
+                  <Button variant="outline" className="mt-3 w-full border-indigo-300" disabled={api.busy} onClick={onChangeRule}>
+                    {pendingDraft ? `Review drafted rule (v${pendingDraft.version})` : "Change the rule…"}
+                  </Button>
+                </div>
               </div>
             )}
           </>
@@ -324,21 +405,48 @@ export function VerdictDrawer({
   onClose: () => void;
 }) {
   const change = snapshot.changes.find((c) => c.id === changeId);
+  // "Change the rule" opens a focused composer in place of the verdict, per change.
+  const [ruleViewFor, setRuleViewFor] = useState<string | null>(null);
+  const ruleView = Boolean(change && ruleViewFor === change.id);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Switching between the verdict and the rule-change composer starts each view at its top.
+  useEffect(() => {
+    // Braces matter: newer browsers return a Promise from scrollTo, and effects may only return a cleanup.
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [ruleView]);
+  const failures = (snapshot.runs.find((r) => r.changeId === changeId)?.results ?? []).filter((r) => r.status !== "pass");
   return (
     <Sheet open={Boolean(changeId)} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full gap-0 overflow-y-auto p-0 data-[side=right]:sm:max-w-xl">
+      <SheetContent ref={scrollRef} className="w-full gap-0 overflow-y-auto p-0 data-[side=right]:sm:max-w-xl">
         {change ? (
           <>
             <SheetHeader className="sticky top-0 z-10 gap-2 border-b bg-popover/95 px-5 pt-5 pb-4 backdrop-blur">
               <div className="flex items-center gap-2 pr-8">
                 <span className="font-mono text-xs text-muted-foreground">Change #{shortId(change.id)}</span>
-                <ChangeStatusPill status={change.status} resolved={Boolean(change.resolution)} />
+                <ChangeStatusPill status={change.status} resolution={change.resolution} />
               </div>
               <SheetTitle className="text-lg leading-snug">“{change.intent}”</SheetTitle>
               <SheetDescription>Every change is checked structurally, then against every scenario, before it can go live.</SheetDescription>
             </SheetHeader>
             <div className="pt-5">
-              <VerdictBody change={change} snapshot={snapshot} progress={progress} api={api} onOpenChange={onOpenChange} />
+              {ruleView ? (
+                <RuleChangePanel
+                  change={change}
+                  snapshot={snapshot}
+                  failures={failures}
+                  api={api}
+                  onBack={() => setRuleViewFor(null)}
+                />
+              ) : (
+                <VerdictBody
+                  change={change}
+                  snapshot={snapshot}
+                  progress={progress}
+                  api={api}
+                  onOpenChange={onOpenChange}
+                  onChangeRule={() => setRuleViewFor(change.id)}
+                />
+              )}
             </div>
           </>
         ) : (

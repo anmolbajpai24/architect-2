@@ -65,14 +65,49 @@ export const scenarios = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
+    /** The live rule. Moves only when the user explicitly applies a scenario revision. */
+    currentVersionId: uuid("current_version_id").references((): AnyPgColumn => scenarioVersions.id, {
+      onDelete: "set null",
+    }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("scenarios_project_key").on(t.projectId, t.key)],
+);
+
+/** Who drafted a revision's content and why, as told to the user. */
+export type ScenarioProposal = { mode: "fixture" | "live"; model: string; rationale: string };
+
+/**
+ * Immutable scenario content. A revision is drafted (proposed), then applied or discarded by the user;
+ * only `appliedAt` / `discardedAt` are ever set after insert.
+ */
+export const scenarioVersions = pgTable(
+  "scenario_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    scenarioId: uuid("scenario_id")
+      .notNull()
+      .references(() => scenarios.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
     name: text("name").notNull(),
     /** The user intent this scenario protects, in plain language. */
     intent: text("intent").notNull(),
     input: jsonb("input").$type<ScenarioInput>().notNull(),
     assertions: jsonb("assertions").$type<Assertion[]>().notNull(),
+    /** The version this one revises; null for the seeded baseline. */
+    basedOnVersionId: uuid("based_on_version_id").references((): AnyPgColumn => scenarioVersions.id, {
+      onDelete: "set null",
+    }),
+    /** The blocked Change that led the user to change the rule, if any. */
+    changeId: uuid("change_id").references((): AnyPgColumn => changes.id, { onDelete: "set null" }),
+    /** The user's own words for the new requirement. */
+    request: text("request"),
+    proposal: jsonb("proposal").$type<ScenarioProposal>(),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    discardedAt: timestamp("discarded_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("scenarios_project_key").on(t.projectId, t.key)],
+  (t) => [uniqueIndex("scenario_versions_scenario_version").on(t.scenarioId, t.version)],
 );
 
 export type ChangeStatus = "proposed" | "structural_failed" | "behavioral_failed" | "verified" | "applied";
